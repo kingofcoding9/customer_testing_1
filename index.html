@@ -1753,31 +1753,481 @@
             </button>
         );
 
-        const GuideCard = ({ title, children }) => (
-            <section className="bg-white border border-diner-border rounded-2xl p-5 shadow-sm space-y-3">
-                <h3 className="text-xl font-bold text-diner-text flex items-center gap-2">
-                    <span className="inline-flex w-8 h-8 rounded-full bg-orange-50 text-diner-primary items-center justify-center shrink-0"><Icon name="helpCircle" className="w-4 h-4" /></span>
-                    {title}
-                </h3>
-                <div className="text-diner-muted text-sm leading-relaxed space-y-2">{children}</div>
-            </section>
-        );
+        const GUIDE_SECTIONS = [
+            {
+                        "id": "getting-started",
+                        "title": "1. Getting started",
+                        "keywords": "start open choose folder first time permission save folder dark mode light mode",
+                        "summary": "Open Hickory House Inventory, choose where your files are kept, and understand the first screen.",
+                        "items": [
+                                    "When Hickory House Inventory opens for the first time, press Choose Folder. Choose the folder where the inventory files should be kept.",
+                                    "If your device asks for permission, choose Allow. Hickory House Inventory needs permission so it can read and save your inventory information in that folder.",
+                                    "Use a folder that is easy to find later, such as Documents > Hickory House Inventory, Desktop > Hickory House Inventory, or a business inventory folder.",
+                                    "After the folder is chosen, Hickory House Inventory opens the main inventory screen.",
+                                    "Use Light Mode or Dark Mode to change the screen colors. This only changes how Hickory House Inventory looks. It does not change your inventory information."
+                        ],
+                        "tips": [
+                                    "A good folder name is Hickory House Inventory. Keep it somewhere staff can find it again.",
+                                    "Do not move or delete the saved files unless you already exported a backup."
+                        ]
+            },
+            {
+                        "id": "json-files",
+                        "title": "2. What JSON files are",
+                        "keywords": "json file inventory recipes logs create backup database export portable folder mode",
+                        "summary": "Understand the files Hickory House Inventory saves, without needing any technical knowledge.",
+                        "items": [
+                                    "A JSON file is just a saved information file. Think of it like a notebook that Hickory House Inventory can read and write.",
+                                    "inventory.json stores pantry items, quantities, prices, units, and expiration information.",
+                                    "recipes.json stores Kitchen dishes, ingredients, tags, and dish costs.",
+                                    "logs.json stores the Ledger history of cooked dishes.",
+                                    "You normally do not need to open or edit JSON files yourself. Hickory House Inventory creates and updates them for you.",
+                                    "In Folder Mode, Hickory House Inventory can create inventory.json, recipes.json, and logs.json when it saves your information to the folder you chose.",
+                                    "In Portable Mode, press Export Backup to create one backup JSON file that contains pantry items, dishes, and ledger history.",
+                                    "If someone asks you to create a JSON file manually, the safe beginner answer is: open Hickory House Inventory, enter or import the information, then use Export Backup or Export 3 JSON Files."
+                        ],
+                        "tips": [
+                                    "Do not rename inventory.json, recipes.json, or logs.json unless you know exactly why. Hickory House Inventory looks for those names.",
+                                    "Do not double-click a JSON file expecting it to look like a spreadsheet. It may open as plain text, and that is normal.",
+                                    "The backup file is still a JSON file, but it is meant to be imported back into Hickory House Inventory, not edited by hand."
+                        ]
+            },
+            {
+                        "id": "navigation",
+                        "title": "3. Moving around Hickory House Inventory",
+                        "keywords": "navigation menu register pantry resupply kitchen ledger mobile computer guide sidebar bottom buttons",
+                        "summary": "Know what each main area is for and how to reach it.",
+                        "items": [
+                                    "On a computer, use the left menu to move between sections.",
+                                    "On a phone or tablet, use the buttons at the bottom. Press the menu button in the top-left area when you need the full menu.",
+                                    "Register is the dashboard. It gives a quick overview of pantry value, item count, saved dishes, and recent additions.",
+                                    "Pantry is the full inventory list. Use it to add, edit, search, and delete inventory items.",
+                                    "Resupply is for adding many items at once from a pasted table, spreadsheet, invoice, or supported file.",
+                                    "Kitchen is for building dishes, calculating dish costs, and cooking dishes so ingredients are deducted from the pantry.",
+                                    "Ledger is the history of cooked dishes and ingredient deductions.",
+                                    "Press the Guide button at any time to open these instructions again."
+                        ],
+                        "tips": [
+                                    "If you feel lost, go back to Register. It is the easiest place to restart from.",
+                                    "The section name at the top tells you where you are."
+                        ]
+            },
+            {
+                        "id": "register",
+                        "title": "4. Register dashboard",
+                        "keywords": "register dashboard total pantry value unique items saved dishes recent additions manage pantry resupply",
+                        "summary": "Use the Register as the simple overview screen.",
+                        "items": [
+                                    "Total Pantry Value shows the current dollar value of all pantry inventory saved in Hickory House Inventory.",
+                                    "Unique Items shows how many different pantry item names are saved. For example, brisket and flour count as two unique items.",
+                                    "Saved Dishes shows how many Kitchen dishes or recipes are saved.",
+                                    "Recent Additions shows the newest pantry items that were added.",
+                                    "Press Manage Pantry to edit the full pantry list.",
+                                    "Press Go to Resupply when you want to add many items from a file, spreadsheet, invoice, or copied table."
+                        ],
+                        "tips": [
+                                    "Use Register at the start of a shift when you only need a quick overview.",
+                                    "If the totals look wrong, check Pantry first because Register gets its numbers from Pantry."
+                        ]
+            },
+            {
+                        "id": "pantry",
+                        "title": "5. Pantry item list",
+                        "keywords": "pantry inventory item list add edit delete search expiration selected checkbox amount cost per base unit",
+                        "summary": "Add, find, update, and remove inventory items.",
+                        "items": [
+                                    "Pantry is the main inventory list. This is where the saved food and supply items live.",
+                                    "Use the search box to find an item by name.",
+                                    "Press Add Item to add one item manually.",
+                                    "Use the pencil button on an item to edit it.",
+                                    "Use the trash button on an item to delete it.",
+                                    "Use Show Expiring Items to only show items that are expired or close to expiring.",
+                                    "Use checkboxes when you need to select several items. Select All Visible selects the items currently shown after search or filtering.",
+                                    "Delete Selected removes the checked items. Use it carefully because it removes more than one item at once.",
+                                    "Available Amount shows how much is currently left.",
+                                    "Cost Per Base Unit is the small-unit price Hickory House Inventory uses for recipe math. You do not need to calculate it yourself."
+                        ],
+                        "tips": [
+                                    "Search before adding a new item. That helps avoid saving the same item twice with slightly different names.",
+                                    "Use clear names like Brisket, Onion, Flour, or BBQ Sauce. Clear names make Kitchen recipes easier."
+                        ]
+            },
+            {
+                        "id": "manual-item",
+                        "title": "6. Adding one item manually",
+                        "keywords": "manual add item name price quantity unit expiration date note save item pounds ounces gallons each cups",
+                        "summary": "Add a single purchase by typing its name, price, amount, and unit.",
+                        "items": [
+                                    "Go to Pantry, then press Add Item.",
+                                    "Item Name is the plain name of the item, such as Brisket, Onion, Flour, Sauce Cup, or BBQ Sauce.",
+                                    "Total Price is what was paid for the whole pack, box, case, bottle, bag, or item.",
+                                    "Quantity is how much was bought.",
+                                    "Unit is the measurement type, such as pounds, ounces, gallons, quarts, cups, each, or dozen.",
+                                    "Expiration Date / Note can be a calendar date, a written date, or a short note such as use first, freezer, opened today, or check label.",
+                                    "Press Save Item when the information is correct.",
+                                    "After saving, Hickory House Inventory calculates the small-unit cost automatically."
+                        ],
+                        "examples": [
+                                    "Example: If you bought a 10 lb box of onions for $12.00, enter Item Name as Onion, Total Price as 12, Quantity as 10, and Unit as pounds.",
+                                    "Example: If you bought 24 sauce cups for $6.00, enter Quantity as 24 and Unit as each."
+                        ],
+                        "tips": [
+                                    "Do not include the dollar sign in Total Price if the field only needs a number. Type 12.50 instead of $12.50.",
+                                    "If you are unsure of the expiration date, enter a helpful note instead of leaving staff confused."
+                        ]
+            },
+            {
+                        "id": "resupply",
+                        "title": "7. Resupply: importing many items",
+                        "keywords": "resupply import paste spreadsheet invoice csv xlsx json analyze pasted data browse files map columns save to pantry",
+                        "summary": "Bring in several inventory items at once from copied text or files.",
+                        "items": [
+                                    "Use Resupply when you have many items to add at one time.",
+                                    "You can paste a table from another program into the large text box, then press Analyze Pasted Data.",
+                                    "You can also press Browse Files and choose a supported file from your device.",
+                                    "Supported files can include common spreadsheet, text table, JSON, HTML, XML, CSV, TSV, Excel, and similar exports.",
+                                    "After import, Hickory House Inventory shows a preview before saving anything to Pantry.",
+                                    "The preview step is important. It lets you confirm that the right information went into the right place.",
+                                    "Nothing should be considered final until you press Save to Pantry."
+                        ],
+                        "tips": [
+                                    "If an invoice import looks messy, try copying only the item table and pasting it into Resupply instead of importing the whole file.",
+                                    "Always review prices and quantities before saving. Imports can only be as accurate as the file they came from."
+                        ]
+            },
+            {
+                        "id": "mapping-columns",
+                        "title": "8. Mapping columns during Resupply",
+                        "keywords": "map columns column mapping item name pack size total price ignore column hide ignored show ignored continue review",
+                        "summary": "Tell Hickory House Inventory which imported column means what.",
+                        "items": [
+                                    "Mapping columns means matching each imported column to the correct meaning.",
+                                    "Choose Item Name for the column that contains the product or ingredient name.",
+                                    "Choose Pack Size for the column that says how much came in the package, such as 10 lb, 1 gal, 24 ea, or 6/1.5 LB.",
+                                    "Choose Total Price for the column that contains the price for that line item.",
+                                    "Choose Ignore Column for information Hickory House Inventory does not need, such as item code, vendor name, category, invoice number, or notes.",
+                                    "Hide Ignored Columns makes the preview easier to read by hiding columns you chose to ignore.",
+                                    "Show Ignored Columns brings those hidden columns back if you need to check them again.",
+                                    "Press Continue after Item Name, Pack Size, and Total Price are mapped correctly."
+                        ],
+                        "tips": [
+                                    "If the item names look like prices or the prices look like item names, the columns are mapped wrong. Go back and fix the mapping.",
+                                    "Use the sample rows shown on-screen to decide what each column contains."
+                        ]
+            },
+            {
+                        "id": "review-import",
+                        "title": "9. Reviewing imported items",
+                        "keywords": "review converted items imported rows fix price quantity delete row conflict duplicate same name save to pantry",
+                        "summary": "Check imported items before they are added to Pantry.",
+                        "items": [
+                                    "The review step shows how Hickory House Inventory understood each imported item.",
+                                    "Check the item name, quantity, unit, and price for each row.",
+                                    "If a row is wrong, fix it before saving.",
+                                    "If a row should not be imported, delete that row from the review list.",
+                                    "If Hickory House Inventory warns about a duplicate name with a different price, review it carefully. The same item name should usually use the same purchase price when merging.",
+                                    "Press Save to Pantry only after the list looks correct.",
+                                    "When saved, matching items can be merged into existing Pantry quantities when the name, price, and unit information are compatible."
+                        ],
+                        "tips": [
+                                    "Never rush the review step. This is where most import mistakes can be caught before they affect Pantry.",
+                                    "If several rows are wrong in the same way, the column mapping may need to be changed."
+                        ]
+            },
+            {
+                        "id": "units",
+                        "title": "10. Understanding pack sizes and units",
+                        "keywords": "pack size unit pounds ounces grams gallons milliliters each dozen weight volume count conversion base unit cost",
+                        "summary": "Understand measurements without needing to do the math yourself.",
+                        "items": [
+                                    "A pack size describes how much was purchased. Examples include 10 lb, 12 oz, 1 gal, 24 ea, 1 dzn, or 6/1.5 LB.",
+                                    "Weight items are things measured by pounds, ounces, grams, or kilograms.",
+                                    "Volume items are liquids or measured amounts like gallons, quarts, pints, cups, fluid ounces, tablespoons, teaspoons, milliliters, or liters.",
+                                    "Count items are things counted one by one, such as each or dozen.",
+                                    "Hickory House Inventory stores weight as grams in the background, volume as milliliters in the background, and count items as each in the background.",
+                                    "You do not need to use grams or milliliters yourself. Hickory House Inventory uses them so ingredient costs can be calculated consistently.",
+                                    "If an imported pack size looks wrong, correct it before saving the item to Pantry."
+                        ],
+                        "examples": [
+                                    "6/1.5 LB usually means six packages at 1.5 pounds each, for a total of 9 pounds.",
+                                    "24 ea means twenty-four individual pieces.",
+                                    "1 gal means one gallon."
+                        ],
+                        "tips": [
+                                    "Use the same unit type for the same item whenever possible. For example, keep brisket as weight, not sometimes weight and sometimes count.",
+                                    "If a recipe uses cups for an item bought by pounds, Hickory House Inventory may estimate the conversion because every ingredient has a different real density."
+                        ]
+            },
+            {
+                        "id": "kitchen",
+                        "title": "11. Kitchen: creating dishes and calculating cost",
+                        "keywords": "kitchen dish recipe ingredients cost create new dish tags ingredient amount unit save update",
+                        "summary": "Create dishes and let Hickory House Inventory calculate ingredient cost.",
+                        "items": [
+                                    "Use Kitchen to create dishes, attach pantry ingredients, and calculate how much each dish costs to make.",
+                                    "Press Create New Dish to start a new dish.",
+                                    "Dish Name is the name staff will recognize, such as Pulled Pork Sandwich, Brisket Plate, Fries, or Banana Pudding.",
+                                    "Tags are optional labels such as breakfast, smoked, catering, special, side, dessert, seasonal, or lunch.",
+                                    "To add an ingredient, choose a Pantry item, type how much the dish uses, choose the unit, then press Add.",
+                                    "The ingredient list shows the amount used and the calculated cost.",
+                                    "Press Save Dish to keep a new dish. Press Update Dish when editing an existing dish."
+                        ],
+                        "tips": [
+                                    "Create Pantry items before creating dishes. Kitchen can only calculate costs from saved Pantry items.",
+                                    "Use tags to make large dish lists easier to search later."
+                        ]
+            },
+            {
+                        "id": "saved-dishes",
+                        "title": "12. Managing saved dishes",
+                        "keywords": "saved dishes search tags all tags checkbox collapse expand edit delete cook dish selected",
+                        "summary": "Find, edit, organize, delete, and cook saved dishes.",
+                        "items": [
+                                    "Use the Kitchen search box to find dishes by dish name, tag, or ingredient.",
+                                    "Use the All Tags dropdown or tag buttons to show only dishes with a certain tag.",
+                                    "Use checkboxes to select dishes. Select All Visible selects the dishes currently shown after search or tag filtering.",
+                                    "Delete Selected removes the selected dishes.",
+                                    "Collapse Visible hides ingredient details so the dish list is easier to scan.",
+                                    "Expand Visible shows ingredient details again.",
+                                    "Use the pencil button to edit a dish.",
+                                    "Use the trash button to delete a dish.",
+                                    "Press Cook Dish when that dish is actually made and ingredients should be removed from Pantry."
+                        ],
+                        "tips": [
+                                    "Deleting a dish does not automatically change Pantry. Cooking a dish is what subtracts ingredients from Pantry.",
+                                    "If staff only need to make food, they should usually press Cook Dish, not edit the recipe."
+                        ]
+            },
+            {
+                        "id": "cook-dish",
+                        "title": "13. Cooking a dish and updating Pantry",
+                        "keywords": "cook dish confirm subtract ingredients not enough missing pantry value available amount ledger",
+                        "summary": "Use Cook Dish to subtract ingredients and record the cooking event.",
+                        "items": [
+                                    "When you press Cook Dish, Hickory House Inventory asks for confirmation first.",
+                                    "If there is not enough of an ingredient, Hickory House Inventory tells you what is missing and does not change Pantry.",
+                                    "If everything is available, Hickory House Inventory subtracts the ingredient amounts from Pantry.",
+                                    "After cooking, Pantry amounts and Pantry value update automatically.",
+                                    "The cooked dish is also recorded in Ledger with the date, cost, and ingredients used."
+                        ],
+                        "tips": [
+                                    "Only press Cook Dish when the dish was actually made or when you intentionally want to deduct those ingredients.",
+                                    "If the wrong dish was cooked by mistake, you may need to manually correct Pantry because Clear Ledger does not restore ingredients."
+                        ]
+            },
+            {
+                        "id": "ledger",
+                        "title": "14. Ledger history",
+                        "keywords": "ledger history cooked dishes expenses tracked cost clear ledger date ingredients deducted",
+                        "summary": "Review the history of cooked dishes and ingredient deductions.",
+                        "items": [
+                                    "Ledger is the history of dishes cooked through Kitchen.",
+                                    "Total Expenses Tracked shows the total ingredient cost of all cooked dishes recorded in Ledger.",
+                                    "Dishes Cooked shows how many cooking records are saved.",
+                                    "Each ledger card shows the dish name, date, cost, and ingredients deducted from Pantry.",
+                                    "Use Clear Ledger only when you intentionally want to erase the cooking history.",
+                                    "Clear Ledger does not put ingredients back into Pantry. It only clears the history list."
+                        ],
+                        "tips": [
+                                    "Use Ledger for cost review, production review, and checking what was cooked recently.",
+                                    "Export a backup before clearing Ledger if the history may be needed later."
+                        ]
+            },
+            {
+                        "id": "saving-backups",
+                        "title": "15. Saving, backups, and safe use",
+                        "keywords": "saving backup export backup export 3 json files folder mode portable mode unsaved changes database safe use",
+                        "summary": "Protect the inventory information from being lost.",
+                        "items": [
+                                    "Folder Mode saves directly to the folder you chose. Hickory House Inventory writes inventory.json, recipes.json, and logs.json for you.",
+                                    "Portable Mode saves changes for the current session, but you must export a backup to keep those changes after closing.",
+                                    "If you see an unsaved changes message or an asterisk on Export Backup, press Export Backup before closing Hickory House Inventory.",
+                                    "Export Backup downloads one backup file that contains Pantry, Kitchen dishes, and Ledger history.",
+                                    "Export 3 JSON Files downloads inventory.json, recipes.json, and logs.json separately.",
+                                    "Keep backup files somewhere safe, such as a business folder, external drive, or approved cloud storage.",
+                                    "Do not delete the saved JSON files unless a newer backup is already saved somewhere safe."
+                        ],
+                        "tips": [
+                                    "A simple safe habit is to export a backup at the end of each day.",
+                                    "When training staff, tell them: if Hickory House Inventory says to export, export before closing."
+                        ]
+            },
+            {
+                        "id": "daily-workflow",
+                        "title": "16. Simple daily workflow",
+                        "keywords": "daily workflow open choose folder add purchases check pantry create update dishes cook ledger backup",
+                        "summary": "A basic step-by-step routine for regular use.",
+                        "steps": [
+                                    "Open Hickory House Inventory and choose the correct folder.",
+                                    "Go to Pantry or Resupply to add new purchases.",
+                                    "Check Pantry for low, expired, or soon-to-expire items.",
+                                    "Go to Kitchen to create or update dishes.",
+                                    "Press Cook Dish when food is made so ingredients are deducted from Pantry.",
+                                    "Review Ledger when you need cooking or cost history.",
+                                    "Export a backup if Hickory House Inventory says the current mode needs one."
+                        ],
+                        "tips": [
+                                    "For most daily use, staff will mainly use Pantry, Kitchen, and Ledger.",
+                                    "For receiving inventory from invoices or spreadsheets, staff will mainly use Resupply."
+                        ]
+            },
+            {
+                        "id": "troubleshooting",
+                        "title": "17. Common problems and simple fixes",
+                        "keywords": "troubleshooting problem fix cannot find folder import wrong json file missing save not working browser permission",
+                        "summary": "Quick fixes for common beginner mistakes.",
+                        "items": [
+                                    "If Hickory House Inventory opens empty, make sure you chose the correct folder or imported the correct backup file.",
+                                    "If a file import looks wrong, go back to Resupply and check the column mapping.",
+                                    "If an item amount looks wrong, edit the item in Pantry and correct the quantity or unit.",
+                                    "If a dish cost looks wrong, check the Pantry item price and unit first, then check the dish ingredient amount in Kitchen.",
+                                    "If saving does not work in Folder Mode, the browser or device may not have permission. Choose the folder again and allow permission when asked.",
+                                    "If using Portable Mode, remember that changes must be exported before closing.",
+                                    "If a JSON file opens as plain text, that is normal. Do not edit the text unless you know exactly what you are changing."
+                        ],
+                        "tips": [
+                                    "Most mistakes can be fixed by checking the source section: Pantry for items, Resupply for imports, Kitchen for recipes, and Ledger for history.",
+                                    "When unsure, export a backup before making large changes."
+                        ]
+            }
+];
+
+        const normalizeGuideSearchText = (value) => String(value || '').toLowerCase().trim();
+
+        const getGuideSectionText = (section) => {
+            return [
+                section.title,
+                section.summary,
+                section.keywords,
+                ...(section.items || []),
+                ...(section.examples || []),
+                ...(section.steps || []),
+                ...(section.tips || [])
+            ].join(' ');
+        };
+
+        const getGuideSectionMatchesSearch = (section, searchText) => {
+            if (!searchText) return true;
+            return normalizeGuideSearchText(getGuideSectionText(section)).includes(searchText);
+        };
 
         const GuideList = ({ items }) => (
             <ul className="list-disc pl-5 space-y-1.5">
-                {items.map((item, index) => <li key={index}>{item}</li>)}
+                {(items || []).map((item, index) => <li key={index}>{item}</li>)}
             </ul>
         );
 
+        const GuideNumberList = ({ items }) => (
+            <ol className="list-decimal pl-5 space-y-1.5">
+                {(items || []).map((item, index) => <li key={index}>{item}</li>)}
+            </ol>
+        );
+
+        const GuideSection = ({ section, isOpen, onToggle }) => (
+            <section id={`guide-${section.id}`} className="bg-white border border-diner-border rounded-2xl shadow-sm overflow-hidden scroll-mt-5">
+                <button
+                    type="button"
+                    onClick={onToggle}
+                    aria-expanded={isOpen}
+                    className="w-full p-4 sm:p-5 text-left flex items-start justify-between gap-4 hover:bg-stone-50 transition-colors"
+                >
+                    <div className="min-w-0">
+                        <div className="flex items-start gap-3">
+                            <span className="inline-flex w-8 h-8 rounded-full bg-orange-50 text-diner-primary items-center justify-center shrink-0 mt-0.5">
+                                <Icon name="helpCircle" className="w-4 h-4" />
+                            </span>
+                            <div>
+                                <h3 className="text-lg sm:text-xl font-bold text-diner-text">{section.title}</h3>
+                                <p className="text-sm text-diner-muted mt-1">{section.summary}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <span className="shrink-0 text-diner-primary font-bold text-xl leading-none pt-1">{isOpen ? '−' : '+'}</span>
+                </button>
+
+                {isOpen && (
+                    <div className="px-5 pb-5 text-diner-muted text-sm leading-relaxed space-y-4 border-t border-diner-border bg-white">
+                        {section.items && section.items.length > 0 && (
+                            <div className="pt-4">
+                                <GuideList items={section.items} />
+                            </div>
+                        )}
+
+                        {section.steps && section.steps.length > 0 && (
+                            <div className="pt-4">
+                                <h4 className="font-bold text-diner-text mb-2">Steps</h4>
+                                <GuideNumberList items={section.steps} />
+                            </div>
+                        )}
+
+                        {section.examples && section.examples.length > 0 && (
+                            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                                <h4 className="font-bold text-diner-text mb-2">Examples</h4>
+                                <GuideList items={section.examples} />
+                            </div>
+                        )}
+
+                        {section.tips && section.tips.length > 0 && (
+                            <div className="bg-stone-50 border border-diner-border rounded-xl p-4">
+                                <h4 className="font-bold text-diner-text mb-2">Helpful tips</h4>
+                                <GuideList items={section.tips} />
+                            </div>
+                        )}
+                    </div>
+                )}
+            </section>
+        );
+
         function GuideModal({ onClose }) {
+            const [guideSearch, setGuideSearch] = useState('');
+            const [openSectionIds, setOpenSectionIds] = useState(() => new Set(['getting-started', 'json-files', 'navigation']));
+            const searchText = normalizeGuideSearchText(guideSearch);
+            const matchingSections = GUIDE_SECTIONS.filter(section => getGuideSectionMatchesSearch(section, searchText));
+
+            useEffect(() => {
+                if (!searchText) return;
+                setOpenSectionIds(new Set(matchingSections.map(section => section.id)));
+            }, [searchText]);
+
+            const isSectionOpen = (sectionId) => openSectionIds.has(sectionId);
+
+            const toggleSection = (sectionId) => {
+                setOpenSectionIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(sectionId)) next.delete(sectionId);
+                    else next.add(sectionId);
+                    return next;
+                });
+            };
+
+            const openAndScrollToSection = (sectionId) => {
+                setOpenSectionIds(prev => {
+                    const next = new Set(prev);
+                    next.add(sectionId);
+                    return next;
+                });
+                setTimeout(() => {
+                    document.getElementById(`guide-${sectionId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 50);
+            };
+
+            const expandAll = () => {
+                const visibleSections = searchText ? matchingSections : GUIDE_SECTIONS;
+                setOpenSectionIds(new Set(visibleSections.map(section => section.id)));
+            };
+
+            const collapseAll = () => {
+                setOpenSectionIds(new Set());
+            };
+
             return (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Hickory House Inventory guide">
-                    <div className="bg-diner-surface border border-diner-border rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90dvh] overflow-hidden animation-fadeIn flex flex-col">
+                    <div className="bg-diner-surface border border-diner-border rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92dvh] overflow-hidden animation-fadeIn flex flex-col">
                         <div className="p-5 sm:p-6 border-b border-diner-border bg-stone-50 flex items-start justify-between gap-4">
                             <div>
                                 <div className="text-xs font-bold uppercase tracking-wider text-diner-primary mb-1">Beginner Guide</div>
                                 <h2 className="text-2xl sm:text-3xl font-bold text-diner-text">How to use Hickory House Inventory</h2>
-                                <p className="text-sm text-diner-muted mt-2 max-w-3xl">This guide explains the website in plain language. Use it when training a new employee or when you forget what a button does.</p>
+                                <p className="text-sm text-diner-muted mt-2 max-w-3xl">This guide explains the inventory tool in plain language. It is written for a person who has never used inventory software, spreadsheets, imports, or JSON files before.</p>
                             </div>
                             <button
                                 type="button"
@@ -1789,145 +2239,87 @@
                             </button>
                         </div>
 
-                        <div className="overflow-y-auto p-4 sm:p-6 space-y-5">
-                            <GuideCard title="1. Starting the website">
-                                <GuideList items={[
-                                    'When the website first opens, press Choose Folder. Pick the folder where the inventory files should be stored.',
-                                    'If the browser asks for permission, allow it. The app needs permission so it can read and save inventory.json, recipes.json, and logs.json in that folder.',
-                                    'If your browser cannot save directly to a folder, the app will let you open existing JSON files instead. In that mode, use Export Backup before closing so your changes are not lost.',
-                                    'Use Dark Mode or Light Mode to change the screen colors. This only changes how the app looks; it does not change your saved data.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="2. Moving around the website">
-                                <GuideList items={[
-                                    'On a computer, use the menu on the left side of the screen.',
-                                    'On a phone, use the buttons at the bottom of the screen. Press the menu button in the top left when you need the full menu.',
-                                    'Register is the dashboard. Pantry is your item list. Resupply is for importing many items. Kitchen is for recipes and food cost. Ledger is the cooking history.',
-                                    'Press the Guide button any time you need these instructions again.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="3. Register dashboard">
-                                <GuideList items={[
-                                    'Total Pantry Value shows the current dollar value of everything in the pantry.',
-                                    'Unique Items shows how many different pantry items are saved.',
-                                    'Saved Dishes shows how many dishes or recipes are saved in the Kitchen.',
-                                    'Recent Additions shows the newest pantry items. Press Manage Pantry to edit the full list.',
-                                    'Press Go to Resupply when you want to add inventory from a spreadsheet, invoice, or copied table.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="4. Pantry item list">
-                                <GuideList items={[
-                                    'The Pantry is where you add, search, edit, and delete inventory items.',
-                                    'Use the search box to quickly find an item by name.',
-                                    'Press Add Item to add one item manually. Type the item name, total price, quantity, unit, and expiration date or note if you have one.',
-                                    'Use the pencil button on an item to edit it. Use the trash button to delete it.',
-                                    'Use Show Expiring Items to only see items that are expired or close to expiring.',
-                                    'Use the checkboxes, Select All Visible, and Delete Selected when you need to remove several items at once.',
-                                    'Available Amount is the amount still left. Cost Per Base Unit is the small-unit price the app uses for recipe math.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="5. Adding one item manually">
-                                <GuideList items={[
-                                    'Press Pantry, then Add Item.',
-                                    'Item Name is the plain name, like Brisket, Onion, or Flour.',
-                                    'Total Price is what you paid for the whole pack or case.',
-                                    'Quantity is how much you bought. Unit is the measurement, such as pounds, ounces, gallons, each, or cups.',
-                                    'Expiration Date / Note can be a real date like 2026-06-01, a written date like June 1, 2026, or a note such as use first.',
-                                    'Press Save Item. The app automatically calculates the cost per gram, milliliter, or each in the background.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="6. Resupply: importing many items">
-                                <GuideList items={[
-                                    'Use Resupply when you have many items from Excel, Word, a CSV file, a spreadsheet, a JSON file, or another table export.',
-                                    'Option 1: copy the table from another program, paste it into the large box, then press Analyze Pasted Data.',
-                                    'Option 2: press Browse Files and choose one or more supported files from your device.',
-                                    'After import, the app shows a preview and asks you to Map Columns. This means telling the app which column is the item name, which column is the pack size, and which column is the total price.',
-                                    'Use Ignore Column for columns the app does not need, such as item code, vendor, category, or notes.',
-                                    'Hide Ignored Columns makes the preview less crowded. Show Ignored Columns brings them back.',
-                                    'Press Continue, review the converted items, fix any quantity or price that looks wrong, delete rows you do not want, then press Save to Pantry.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="7. Understanding pack sizes and units">
-                                <GuideList items={[
-                                    'The app understands common food-service pack sizes such as 6/1.5 LB, 12 oz, 1 gal, 24 ea, and similar formats.',
-                                    'Weight items are stored as grams in the background. Volume items are stored as milliliters. Count items are stored as each.',
-                                    'You do not need to think in grams or milliliters while using the app. The app converts those numbers so recipes can be calculated consistently.',
-                                    'If an imported pack size looks wrong in the review step, type the correct quantity before saving.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="8. Kitchen: creating dishes and calculating cost">
-                                <GuideList items={[
-                                    'Use Kitchen to create dishes, attach pantry ingredients, and see the cost of each dish.',
-                                    'Press Create New Dish. Type a dish name, such as Pulled Pork Sandwich.',
-                                    'Tags are optional labels like breakfast, smoked, catering, special, or dessert. They help you find dishes later.',
-                                    'To add an ingredient, choose a pantry item, type how much the dish uses, choose the measurement unit, then press Add.',
-                                    'The ingredient table shows the amount used, the background conversion, and the calculated cost.',
-                                    'Press Save Dish to keep the recipe. If you were editing an existing dish, press Update Dish.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="9. Managing saved dishes">
-                                <GuideList items={[
-                                    'Use the Kitchen search box to find dishes by dish name, tag, or ingredient.',
-                                    'Use the All Tags dropdown or tag buttons to show only dishes with a certain tag.',
-                                    'Use the checkbox on a dish to select it. Select All Visible and Delete Selected help remove multiple dishes.',
-                                    'Collapse Visible hides ingredient details so the page is easier to scan. Expand Visible shows them again.',
-                                    'Use the pencil button to edit a dish. Use the trash button to delete a dish.',
-                                    'Press Cook Dish when the dish is actually made. The app checks whether the pantry has enough ingredients before it subtracts anything.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="10. Cooking a dish and updating inventory">
-                                <GuideList items={[
-                                    'When you press Cook Dish, the app asks you to confirm first.',
-                                    'If there is not enough of an ingredient, the app tells you what is missing and does not change the pantry.',
-                                    'If everything is available, the app subtracts the ingredient amounts from the Pantry.',
-                                    'The app also records the dish, date, cost, and used ingredients in the Ledger.',
-                                    'After cooking, the pantry value and available item amounts update automatically.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="11. Ledger history">
-                                <GuideList items={[
-                                    'The Ledger is the history of dishes that have been cooked through the Kitchen.',
-                                    'Total Expenses Tracked shows the total cost of all cooked dishes in the ledger.',
-                                    'Dishes Cooked shows how many cooking records are saved.',
-                                    'Each ledger card shows the dish name, date, cost, and ingredients deducted from the pantry.',
-                                    'Use Clear Ledger only when you want to permanently erase the cooking history. This does not add ingredients back to the pantry.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="12. Saving, backups, and safe use">
-                                <GuideList items={[
-                                    'Folder mode saves directly to the folder you chose. The app writes inventory.json, recipes.json, and logs.json for you.',
-                                    'Portable mode cannot save directly forever. When the orange unsaved message appears, press Export Backup before closing the browser or switching apps.',
-                                    'Export Backup downloads one backup file containing inventory, dishes, and ledger history.',
-                                    'Export 3 JSON Files downloads inventory.json, recipes.json, and logs.json separately.',
-                                    'Do not delete your saved JSON files unless you also have a backup. Those files are your inventory database.'
-                                ]} />
-                            </GuideCard>
-
-                            <GuideCard title="13. Simple daily workflow">
-                                <ol className="list-decimal pl-5 space-y-1.5">
-                                    <li>Open the website and choose the correct folder.</li>
-                                    <li>Add new purchases in Pantry or import them in Resupply.</li>
-                                    <li>Check Pantry for low, expired, or soon-to-expire items.</li>
-                                    <li>Create or update dishes in Kitchen.</li>
-                                    <li>Press Cook Dish when food is made so ingredients are deducted.</li>
-                                    <li>Review Ledger when you need cost history.</li>
-                                    <li>Export a backup if the app says your current mode needs one.</li>
-                                </ol>
-                            </GuideCard>
+                        <div className="p-4 sm:p-5 border-b border-diner-border bg-diner-surface">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-diner-muted mb-2" htmlFor="guide-search">Search the guide</label>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <div className="relative flex-1">
+                                    <Icon name="search" className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-diner-muted" />
+                                    <input
+                                        id="guide-search"
+                                        type="text"
+                                        value={guideSearch}
+                                        onChange={(event) => setGuideSearch(event.target.value)}
+                                        placeholder="Search words like JSON, backup, import, Pantry, Cook Dish, or expiration..."
+                                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-diner-border bg-white text-diner-text focus:outline-none focus:ring-2 focus:ring-diner-primary/30"
+                                    />
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={expandAll}
+                                        className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-4 rounded-xl transition-colors"
+                                    >
+                                        Expand All
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={collapseAll}
+                                        className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-4 rounded-xl transition-colors"
+                                    >
+                                        Collapse All
+                                    </button>
+                                </div>
+                            </div>
+                            {searchText && (
+                                <p className="text-xs text-diner-muted mt-2">
+                                    Showing {matchingSections.length} matching section{matchingSections.length === 1 ? '' : 's'} for “{guideSearch}”.
+                                </p>
+                            )}
                         </div>
 
-                        <div className="p-4 sm:p-5 border-t border-diner-border bg-stone-50 flex justify-end">
+                        <div className="overflow-y-auto p-4 sm:p-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-[18rem,1fr] gap-5 items-start">
+                                <aside className="bg-white border border-diner-border rounded-2xl p-4 shadow-sm lg:sticky lg:top-0">
+                                    <div className="text-xs font-bold uppercase tracking-wider text-diner-primary mb-3">Index</div>
+                                    <div className="space-y-1 max-h-72 lg:max-h-[58dvh] overflow-y-auto pr-1">
+                                        {(searchText ? matchingSections : GUIDE_SECTIONS).map(section => (
+                                            <button
+                                                key={section.id}
+                                                type="button"
+                                                onClick={() => openAndScrollToSection(section.id)}
+                                                className="w-full text-left rounded-xl px-3 py-2 text-sm font-semibold text-diner-text hover:bg-orange-50 hover:text-diner-primary transition-colors"
+                                            >
+                                                {section.title}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </aside>
+
+                                <main className="space-y-4">
+                                    {matchingSections.length === 0 ? (
+                                        <div className="bg-white border border-diner-border rounded-2xl p-6 text-center shadow-sm">
+                                            <div className="mx-auto w-12 h-12 rounded-full bg-orange-50 text-diner-primary flex items-center justify-center mb-3">
+                                                <Icon name="search" className="w-6 h-6" />
+                                            </div>
+                                            <h3 className="text-lg font-bold text-diner-text">No guide sections found</h3>
+                                            <p className="text-sm text-diner-muted mt-2">Try a simpler word like Pantry, backup, import, JSON, dish, price, unit, or Ledger.</p>
+                                        </div>
+                                    ) : (
+                                        matchingSections.map(section => (
+                                            <GuideSection
+                                                key={section.id}
+                                                section={section}
+                                                isOpen={isSectionOpen(section.id)}
+                                                onToggle={() => toggleSection(section.id)}
+                                            />
+                                        ))
+                                    )}
+                                </main>
+                            </div>
+                        </div>
+
+                        <div className="p-4 sm:p-5 border-t border-diner-border bg-stone-50 flex flex-col sm:flex-row sm:justify-between gap-3">
+                            <p className="text-xs text-diner-muted">Tip: use the index to jump to a topic, or search for a word if you do not know which section to open.</p>
                             <button
                                 type="button"
                                 onClick={onClose}
