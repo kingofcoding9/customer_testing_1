@@ -213,7 +213,8 @@
                 clipboard: <><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></>,
                 arrowRight: <><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></>,
                 flame: <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>,
-                book: <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>
+                book: <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>,
+                helpCircle: <><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><path d="M12 17h.01"/></>
             };
 
             return (
@@ -1143,6 +1144,7 @@
             const [unsavedChanges, setUnsavedChanges] = useState(false);
             const [lastStorageMessage, setLastStorageMessage] = useState('');
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+            const [isGuideOpen, setIsGuideOpen] = useState(false);
             const portableFileInputRef = useRef(null);
             const portableFolderInputRef = useRef(null);
 
@@ -1152,7 +1154,10 @@
 
             useEffect(() => {
                 const handleKeyDown = (event) => {
-                    if (event.key === 'Escape') setIsSidebarOpen(false);
+                    if (event.key === 'Escape') {
+                        setIsSidebarOpen(false);
+                        setIsGuideOpen(false);
+                    }
                 };
                 window.addEventListener('keydown', handleKeyDown);
                 return () => window.removeEventListener('keydown', handleKeyDown);
@@ -1506,6 +1511,14 @@
 
                                 <button
                                     type="button"
+                                    onClick={() => setIsGuideOpen(true)}
+                                    className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-6 rounded-xl w-full transition-colors flex items-center justify-center"
+                                >
+                                    <Icon name="helpCircle" className="w-5 h-5 mr-2" /> Guide
+                                </button>
+
+                                <button
+                                    type="button"
                                     onClick={toggleDarkMode}
                                     className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-6 rounded-xl w-full transition-colors"
                                 >
@@ -1516,6 +1529,7 @@
                             {lastStorageMessage && <p className="text-center text-sm text-diner-muted font-medium mt-4">{lastStorageMessage}</p>}
                             {error && <p className="text-center text-diner-danger text-sm font-medium mt-4">{error}</p>}
                         </div>
+                        {isGuideOpen && <GuideModal onClose={() => setIsGuideOpen(false)} />}
                     </div>
                 );
             }
@@ -1536,6 +1550,13 @@
 
             const renderStorageControls = () => (
                 <div className="p-4 text-xs font-medium text-diner-muted text-center border-t border-diner-border bg-stone-50 space-y-3">
+                    <button
+                        type="button"
+                        onClick={() => { setIsGuideOpen(true); setIsSidebarOpen(false); }}
+                        className="w-full bg-diner-primary hover:bg-diner-hover text-white rounded-lg py-2 px-3 font-bold transition-colors flex items-center justify-center"
+                    >
+                        <Icon name="helpCircle" className="w-4 h-4 mr-2" /> Guide
+                    </button>
                     <button
                         type="button"
                         onClick={toggleDarkMode}
@@ -1619,13 +1640,22 @@
                             <div className="text-xs font-bold uppercase tracking-wider text-diner-muted">Hickory House</div>
                             <div className="font-bold text-lg leading-tight truncate text-diner-text">{currentNavItem.label}</div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={toggleDarkMode}
-                            className="rounded-xl border border-diner-border bg-white text-diner-text hover:bg-stone-50 px-3 py-2 text-xs font-bold transition-colors"
-                        >
-                            {isDarkMode ? 'Light' : 'Dark'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setIsGuideOpen(true)}
+                                className="rounded-xl bg-diner-primary text-white hover:bg-diner-hover px-3 py-2 text-xs font-bold transition-colors flex items-center"
+                            >
+                                <Icon name="helpCircle" className="w-4 h-4 mr-1" /> Guide
+                            </button>
+                            <button
+                                type="button"
+                                onClick={toggleDarkMode}
+                                className="rounded-xl border border-diner-border bg-white text-diner-text hover:bg-stone-50 px-3 py-2 text-xs font-bold transition-colors"
+                            >
+                                {isDarkMode ? 'Light' : 'Dark'}
+                            </button>
+                        </div>
                     </header>
 
                     {isSidebarOpen && (
@@ -1707,6 +1737,8 @@
                             </button>
                         ))}
                     </nav>
+
+                    {isGuideOpen && <GuideModal onClose={() => setIsGuideOpen(false)} />}
                 </div>
             );
         }
@@ -1720,6 +1752,194 @@
                 <span>{label}</span>
             </button>
         );
+
+        const GuideCard = ({ title, children }) => (
+            <section className="bg-white border border-diner-border rounded-2xl p-5 shadow-sm space-y-3">
+                <h3 className="text-xl font-bold text-diner-text flex items-center gap-2">
+                    <span className="inline-flex w-8 h-8 rounded-full bg-orange-50 text-diner-primary items-center justify-center shrink-0"><Icon name="helpCircle" className="w-4 h-4" /></span>
+                    {title}
+                </h3>
+                <div className="text-diner-muted text-sm leading-relaxed space-y-2">{children}</div>
+            </section>
+        );
+
+        const GuideList = ({ items }) => (
+            <ul className="list-disc pl-5 space-y-1.5">
+                {items.map((item, index) => <li key={index}>{item}</li>)}
+            </ul>
+        );
+
+        function GuideModal({ onClose }) {
+            return (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Hickory House Inventory guide">
+                    <div className="bg-diner-surface border border-diner-border rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90dvh] overflow-hidden animation-fadeIn flex flex-col">
+                        <div className="p-5 sm:p-6 border-b border-diner-border bg-stone-50 flex items-start justify-between gap-4">
+                            <div>
+                                <div className="text-xs font-bold uppercase tracking-wider text-diner-primary mb-1">Beginner Guide</div>
+                                <h2 className="text-2xl sm:text-3xl font-bold text-diner-text">How to use Hickory House Inventory</h2>
+                                <p className="text-sm text-diner-muted mt-2 max-w-3xl">This guide explains the website in plain language. Use it when training a new employee or when you forget what a button does.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="shrink-0 rounded-xl border border-diner-border bg-white text-diner-text hover:bg-red-50 hover:text-diner-danger p-3 transition-colors"
+                                aria-label="Close guide"
+                            >
+                                <Icon name="x" className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto p-4 sm:p-6 space-y-5">
+                            <GuideCard title="1. Starting the website">
+                                <GuideList items={[
+                                    'When the website first opens, press Choose Folder. Pick the folder where the inventory files should be stored.',
+                                    'If the browser asks for permission, allow it. The app needs permission so it can read and save inventory.json, recipes.json, and logs.json in that folder.',
+                                    'If your browser cannot save directly to a folder, the app will let you open existing JSON files instead. In that mode, use Export Backup before closing so your changes are not lost.',
+                                    'Use Dark Mode or Light Mode to change the screen colors. This only changes how the app looks; it does not change your saved data.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="2. Moving around the website">
+                                <GuideList items={[
+                                    'On a computer, use the menu on the left side of the screen.',
+                                    'On a phone, use the buttons at the bottom of the screen. Press the menu button in the top left when you need the full menu.',
+                                    'Register is the dashboard. Pantry is your item list. Resupply is for importing many items. Kitchen is for recipes and food cost. Ledger is the cooking history.',
+                                    'Press the Guide button any time you need these instructions again.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="3. Register dashboard">
+                                <GuideList items={[
+                                    'Total Pantry Value shows the current dollar value of everything in the pantry.',
+                                    'Unique Items shows how many different pantry items are saved.',
+                                    'Saved Dishes shows how many dishes or recipes are saved in the Kitchen.',
+                                    'Recent Additions shows the newest pantry items. Press Manage Pantry to edit the full list.',
+                                    'Press Go to Resupply when you want to add inventory from a spreadsheet, invoice, or copied table.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="4. Pantry item list">
+                                <GuideList items={[
+                                    'The Pantry is where you add, search, edit, and delete inventory items.',
+                                    'Use the search box to quickly find an item by name.',
+                                    'Press Add Item to add one item manually. Type the item name, total price, quantity, unit, and expiration date or note if you have one.',
+                                    'Use the pencil button on an item to edit it. Use the trash button to delete it.',
+                                    'Use Show Expiring Items to only see items that are expired or close to expiring.',
+                                    'Use the checkboxes, Select All Visible, and Delete Selected when you need to remove several items at once.',
+                                    'Available Amount is the amount still left. Cost Per Base Unit is the small-unit price the app uses for recipe math.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="5. Adding one item manually">
+                                <GuideList items={[
+                                    'Press Pantry, then Add Item.',
+                                    'Item Name is the plain name, like Brisket, Onion, or Flour.',
+                                    'Total Price is what you paid for the whole pack or case.',
+                                    'Quantity is how much you bought. Unit is the measurement, such as pounds, ounces, gallons, each, or cups.',
+                                    'Expiration Date / Note can be a real date like 2026-06-01, a written date like June 1, 2026, or a note such as use first.',
+                                    'Press Save Item. The app automatically calculates the cost per gram, milliliter, or each in the background.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="6. Resupply: importing many items">
+                                <GuideList items={[
+                                    'Use Resupply when you have many items from Excel, Word, a CSV file, a spreadsheet, a JSON file, or another table export.',
+                                    'Option 1: copy the table from another program, paste it into the large box, then press Analyze Pasted Data.',
+                                    'Option 2: press Browse Files and choose one or more supported files from your device.',
+                                    'After import, the app shows a preview and asks you to Map Columns. This means telling the app which column is the item name, which column is the pack size, and which column is the total price.',
+                                    'Use Ignore Column for columns the app does not need, such as item code, vendor, category, or notes.',
+                                    'Hide Ignored Columns makes the preview less crowded. Show Ignored Columns brings them back.',
+                                    'Press Continue, review the converted items, fix any quantity or price that looks wrong, delete rows you do not want, then press Save to Pantry.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="7. Understanding pack sizes and units">
+                                <GuideList items={[
+                                    'The app understands common food-service pack sizes such as 6/1.5 LB, 12 oz, 1 gal, 24 ea, and similar formats.',
+                                    'Weight items are stored as grams in the background. Volume items are stored as milliliters. Count items are stored as each.',
+                                    'You do not need to think in grams or milliliters while using the app. The app converts those numbers so recipes can be calculated consistently.',
+                                    'If an imported pack size looks wrong in the review step, type the correct quantity before saving.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="8. Kitchen: creating dishes and calculating cost">
+                                <GuideList items={[
+                                    'Use Kitchen to create dishes, attach pantry ingredients, and see the cost of each dish.',
+                                    'Press Create New Dish. Type a dish name, such as Pulled Pork Sandwich.',
+                                    'Tags are optional labels like breakfast, smoked, catering, special, or dessert. They help you find dishes later.',
+                                    'To add an ingredient, choose a pantry item, type how much the dish uses, choose the measurement unit, then press Add.',
+                                    'The ingredient table shows the amount used, the background conversion, and the calculated cost.',
+                                    'Press Save Dish to keep the recipe. If you were editing an existing dish, press Update Dish.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="9. Managing saved dishes">
+                                <GuideList items={[
+                                    'Use the Kitchen search box to find dishes by dish name, tag, or ingredient.',
+                                    'Use the All Tags dropdown or tag buttons to show only dishes with a certain tag.',
+                                    'Use the checkbox on a dish to select it. Select All Visible and Delete Selected help remove multiple dishes.',
+                                    'Collapse Visible hides ingredient details so the page is easier to scan. Expand Visible shows them again.',
+                                    'Use the pencil button to edit a dish. Use the trash button to delete a dish.',
+                                    'Press Cook Dish when the dish is actually made. The app checks whether the pantry has enough ingredients before it subtracts anything.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="10. Cooking a dish and updating inventory">
+                                <GuideList items={[
+                                    'When you press Cook Dish, the app asks you to confirm first.',
+                                    'If there is not enough of an ingredient, the app tells you what is missing and does not change the pantry.',
+                                    'If everything is available, the app subtracts the ingredient amounts from the Pantry.',
+                                    'The app also records the dish, date, cost, and used ingredients in the Ledger.',
+                                    'After cooking, the pantry value and available item amounts update automatically.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="11. Ledger history">
+                                <GuideList items={[
+                                    'The Ledger is the history of dishes that have been cooked through the Kitchen.',
+                                    'Total Expenses Tracked shows the total cost of all cooked dishes in the ledger.',
+                                    'Dishes Cooked shows how many cooking records are saved.',
+                                    'Each ledger card shows the dish name, date, cost, and ingredients deducted from the pantry.',
+                                    'Use Clear Ledger only when you want to permanently erase the cooking history. This does not add ingredients back to the pantry.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="12. Saving, backups, and safe use">
+                                <GuideList items={[
+                                    'Folder mode saves directly to the folder you chose. The app writes inventory.json, recipes.json, and logs.json for you.',
+                                    'Portable mode cannot save directly forever. When the orange unsaved message appears, press Export Backup before closing the browser or switching apps.',
+                                    'Export Backup downloads one backup file containing inventory, dishes, and ledger history.',
+                                    'Export 3 JSON Files downloads inventory.json, recipes.json, and logs.json separately.',
+                                    'Do not delete your saved JSON files unless you also have a backup. Those files are your inventory database.'
+                                ]} />
+                            </GuideCard>
+
+                            <GuideCard title="13. Simple daily workflow">
+                                <ol className="list-decimal pl-5 space-y-1.5">
+                                    <li>Open the website and choose the correct folder.</li>
+                                    <li>Add new purchases in Pantry or import them in Resupply.</li>
+                                    <li>Check Pantry for low, expired, or soon-to-expire items.</li>
+                                    <li>Create or update dishes in Kitchen.</li>
+                                    <li>Press Cook Dish when food is made so ingredients are deducted.</li>
+                                    <li>Review Ledger when you need cost history.</li>
+                                    <li>Export a backup if the app says your current mode needs one.</li>
+                                </ol>
+                            </GuideCard>
+                        </div>
+
+                        <div className="p-4 sm:p-5 border-t border-diner-border bg-stone-50 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="bg-diner-primary hover:bg-diner-hover text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-sm"
+                            >
+                                Close Guide
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
 
         // ==========================================
         // VIEWS
