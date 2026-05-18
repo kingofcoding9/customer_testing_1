@@ -2124,20 +2124,20 @@
         );
 
         const GuideSection = ({ section, isOpen, onToggle }) => (
-            <section id={`guide-${section.id}`} className="bg-white border border-diner-border rounded-2xl shadow-sm overflow-hidden scroll-mt-5">
+            <section id={`guide-${section.id}`} className="bg-white border border-diner-border rounded-2xl shadow-sm overflow-hidden scroll-mt-24 sm:scroll-mt-6">
                 <button
                     type="button"
                     onClick={onToggle}
                     aria-expanded={isOpen}
-                    className="w-full p-4 sm:p-5 text-left flex items-start justify-between gap-4 hover:bg-stone-50 transition-colors"
+                    className="w-full p-3 sm:p-5 text-left flex items-start justify-between gap-3 sm:gap-4 hover:bg-stone-50 transition-colors"
                 >
                     <div className="min-w-0">
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-2.5 sm:gap-3">
                             <span className="inline-flex w-8 h-8 rounded-full bg-orange-50 text-diner-primary items-center justify-center shrink-0 mt-0.5">
                                 <Icon name="helpCircle" className="w-4 h-4" />
                             </span>
-                            <div>
-                                <h3 className="text-lg sm:text-xl font-bold text-diner-text">{section.title}</h3>
+                            <div className="min-w-0">
+                                <h3 className="text-base sm:text-xl font-bold text-diner-text leading-snug">{section.title}</h3>
                                 <p className="text-sm text-diner-muted mt-1">{section.summary}</p>
                             </div>
                         </div>
@@ -2146,7 +2146,7 @@
                 </button>
 
                 {isOpen && (
-                    <div className="px-5 pb-5 text-diner-muted text-sm leading-relaxed space-y-4 border-t border-diner-border bg-white">
+                    <div className="px-4 sm:px-5 pb-4 sm:pb-5 text-diner-muted text-sm leading-relaxed space-y-4 border-t border-diner-border bg-white">
                         {section.items && section.items.length > 0 && (
                             <div className="pt-4">
                                 <GuideList items={section.items} />
@@ -2221,13 +2221,11 @@
             };
 
             return (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Hickory House Inventory guide">
-                    <div className="bg-diner-surface border border-diner-border rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92dvh] overflow-hidden animation-fadeIn flex flex-col">
-                        <div className="p-5 sm:p-6 border-b border-diner-border bg-stone-50 flex items-start justify-between gap-4">
-                            <div>
-                                <div className="text-xs font-bold uppercase tracking-wider text-diner-primary mb-1">Beginner Guide</div>
-                                <h2 className="text-2xl sm:text-3xl font-bold text-diner-text">How to use Hickory House Inventory</h2>
-                                <p className="text-sm text-diner-muted mt-2 max-w-3xl">This guide explains the inventory tool in plain language. It is written for a person who has never used inventory software, spreadsheets, imports, or JSON files before.</p>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-stretch sm:items-center justify-center p-0 sm:p-6" role="dialog" aria-modal="true" aria-label="Hickory House Inventory guide">
+                    <div className="bg-diner-surface border border-diner-border rounded-none sm:rounded-3xl shadow-2xl w-full sm:max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[92dvh] overflow-hidden animation-fadeIn flex flex-col">
+                        <div className="p-4 sm:p-6 border-b border-diner-border bg-stone-50 flex items-start justify-between gap-3 sm:gap-4">
+                            <div className="min-w-0">
+                                <h2 className="text-2xl sm:text-3xl font-bold text-diner-text leading-tight">Hickory House Inventory Guide</h2>
                             </div>
                             <button
                                 type="button"
@@ -2239,9 +2237,9 @@
                             </button>
                         </div>
 
-                        <div className="p-4 sm:p-5 border-b border-diner-border bg-diner-surface">
+                        <div className="p-3 sm:p-5 border-b border-diner-border bg-diner-surface shrink-0">
                             <label className="block text-xs font-bold uppercase tracking-wider text-diner-muted mb-2" htmlFor="guide-search">Search the guide</label>
-                            <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex flex-col md:flex-row gap-3">
                                 <div className="relative flex-1">
                                     <Icon name="search" className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-diner-muted" />
                                     <input
@@ -2253,18 +2251,18 @@
                                         className="w-full pl-10 pr-4 py-3 rounded-xl border border-diner-border bg-white text-diner-text focus:outline-none focus:ring-2 focus:ring-diner-primary/30"
                                     />
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="grid grid-cols-2 md:flex gap-2">
                                     <button
                                         type="button"
                                         onClick={expandAll}
-                                        className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-4 rounded-xl transition-colors"
+                                        className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-3 sm:px-4 rounded-xl transition-colors text-sm sm:text-base"
                                     >
                                         Expand All
                                     </button>
                                     <button
                                         type="button"
                                         onClick={collapseAll}
-                                        className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-4 rounded-xl transition-colors"
+                                        className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-3 sm:px-4 rounded-xl transition-colors text-sm sm:text-base"
                                     >
                                         Collapse All
                                     </button>
@@ -2277,17 +2275,17 @@
                             )}
                         </div>
 
-                        <div className="overflow-y-auto p-4 sm:p-6">
-                            <div className="grid grid-cols-1 lg:grid-cols-[18rem,1fr] gap-5 items-start">
-                                <aside className="bg-white border border-diner-border rounded-2xl p-4 shadow-sm lg:sticky lg:top-0">
+                        <div className="overflow-y-auto flex-1 p-3 sm:p-6 overscroll-contain">
+                            <div className="grid grid-cols-1 lg:grid-cols-[18rem,1fr] gap-3 sm:gap-5 items-start">
+                                <aside className="bg-white border border-diner-border rounded-2xl p-3 sm:p-4 shadow-sm lg:sticky lg:top-0">
                                     <div className="text-xs font-bold uppercase tracking-wider text-diner-primary mb-3">Index</div>
-                                    <div className="space-y-1 max-h-72 lg:max-h-[58dvh] overflow-y-auto pr-1">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1 max-h-44 sm:max-h-56 lg:max-h-[58dvh] overflow-y-auto pr-1 overscroll-contain">
                                         {(searchText ? matchingSections : GUIDE_SECTIONS).map(section => (
                                             <button
                                                 key={section.id}
                                                 type="button"
                                                 onClick={() => openAndScrollToSection(section.id)}
-                                                className="w-full text-left rounded-xl px-3 py-2 text-sm font-semibold text-diner-text hover:bg-orange-50 hover:text-diner-primary transition-colors"
+                                                className="w-full text-left rounded-xl px-3 py-2.5 text-sm font-semibold text-diner-text hover:bg-orange-50 hover:text-diner-primary transition-colors"
                                             >
                                                 {section.title}
                                             </button>
@@ -2295,7 +2293,7 @@
                                     </div>
                                 </aside>
 
-                                <main className="space-y-4">
+                                <main className="space-y-3 sm:space-y-4">
                                     {matchingSections.length === 0 ? (
                                         <div className="bg-white border border-diner-border rounded-2xl p-6 text-center shadow-sm">
                                             <div className="mx-auto w-12 h-12 rounded-full bg-orange-50 text-diner-primary flex items-center justify-center mb-3">
@@ -2318,12 +2316,12 @@
                             </div>
                         </div>
 
-                        <div className="p-4 sm:p-5 border-t border-diner-border bg-stone-50 flex flex-col sm:flex-row sm:justify-between gap-3">
+                        <div className="p-3 sm:p-5 border-t border-diner-border bg-stone-50 flex flex-col sm:flex-row sm:justify-between gap-3 shrink-0">
                             <p className="text-xs text-diner-muted">Tip: use the index to jump to a topic, or search for a word if you do not know which section to open.</p>
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="bg-diner-primary hover:bg-diner-hover text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-sm"
+                                className="bg-diner-primary hover:bg-diner-hover text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-sm w-full sm:w-auto"
                             >
                                 Close Guide
                             </button>
@@ -3596,7 +3594,7 @@
                         </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                         {logs.length === 0 ? (
                             <div className="py-16 text-center border-2 border-dashed border-stone-300 bg-stone-50/50 rounded-3xl text-diner-muted font-medium">
                                 The Ledger is empty. Cook a dish in the Kitchen to see logs here.
