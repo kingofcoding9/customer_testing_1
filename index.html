@@ -2853,11 +2853,13 @@
         }
 
         function Kitchen({ inventory, recipes, saveRecipes }) {
+            const makeId = () => Date.now().toString() + '_' + Math.random().toString(36).slice(2, 8);
             const [isCreating, setIsCreating] = useState(false);
             const [editingRecipeId, setEditingRecipeId] = useState(null);
             
             const [recipeName, setRecipeName] = useState("");
             const [recipeTags, setRecipeTags] = useState("");
+            const [showTagSuggestions, setShowTagSuggestions] = useState(false);
             const [ingredients, setIngredients] = useState([]); 
             
             const [selectedItemId, setSelectedItemId] = useState("");
@@ -2867,16 +2869,84 @@
             const [activeTag, setActiveTag] = useState("");
             const [selectedRecipeIds, setSelectedRecipeIds] = useState([]);
             const [collapsedRecipeIds, setCollapsedRecipeIds] = useState([]);
+            const [collapsedTagGroups, setCollapsedTagGroups] = useState([]);
+
+            const normalizedRecipes = recipes.map(normalizeRecipe);
+            const recipeListNeedsNormalization = recipes.some(recipe => (
+                !recipe?.id ||
+                !Array.isArray(recipe?.tags) ||
+                !Array.isArray(recipe?.ingredients) ||
+                typeof recipe?.name !== 'string' ||
+                typeof recipe?.totalCost !== 'number'
+            ));
 
             useEffect(() => {
-                setSelectedRecipeIds(prev => prev.filter(id => recipes.some(recipe => recipe.id === id)));
-                setCollapsedRecipeIds(prev => prev.filter(id => recipes.some(recipe => recipe.id === id)));
+                if (recipeListNeedsNormalization) {
+                    saveRecipes(normalizedRecipes);
+                }
+            }, [recipeListNeedsNormalization, recipes.length]);
+
+            useEffect(() => {
+                setSelectedRecipeIds(prev => prev.filter(id => normalizedRecipes.some(recipe => recipe.id === id)));
+                setCollapsedRecipeIds(prev => prev.filter(id => normalizedRecipes.some(recipe => recipe.id === id)));
+                setCollapsedTagGroups(prev => prev.filter(key => key === 'untagged' || key.startsWith('tag:')));
             }, [recipes]);
 
             const selectedItem = inventory.find(i => i.id === selectedItemId);
             const ingredientUnitOptions = getKitchenUnitEntriesForItem();
-            const normalizedRecipes = recipes.map(normalizeRecipe);
             const allTags = Array.from(new Set(normalizedRecipes.flatMap(recipe => recipe.tags))).sort((a, b) => a.localeCompare(b));
+
+            const cloneIngredient = (ingredient, index = 0) => ({
+                id: ingredient?.id || `${makeId()}_${index}`,
+                inventoryId: ingredient?.inventoryId || ingredient?.itemId || ingredient?.itemID || '',
+                name: String(ingredient?.name || '').trim(),
+                inputQty: ingredient?.inputQty ?? ingredient?.quantity ?? ingredient?.qty ?? ingredient?.amount ?? '',
+                inputUnit: ingredient?.inputUnit || ingredient?.unit || ingredient?.measurement || 'ea',
+                baseQty: toNumber(ingredient?.baseQty, 0),
+                baseUnitType: ingredient?.baseUnitType || ingredient?.baseUnit || 'ea',
+                cost: toNumber(ingredient?.cost, 0),
+                isEstimated: Boolean(ingredient?.isEstimated),
+                conversionNote: ingredient?.conversionNote || ''
+            });
+
+            const recalculateIngredient = (ingredient, index = 0) => {
+                const cloned = cloneIngredient(ingredient, index);
+                const item = inventory.find(i => i.id === cloned.inventoryId);
+                const unitKey = String(cloned.inputUnit || '').toLowerCase();
+                const qty = toNumber(cloned.inputQty, NaN);
+
+                if (!item || !UNITS[unitKey] || !Number.isFinite(qty) || qty <= 0) {
+                    return {
+                        ...cloned,
+                        inputUnit: unitKey || cloned.inputUnit,
+                        cost: toNumber(cloned.cost, 0)
+                    };
+                }
+
+                const normalizedItem = normalizeInventoryItem(item);
+                const conversion = convertIngredientForItem(qty, unitKey, normalizedItem);
+                return {
+                    ...cloned,
+                    inventoryId: normalizedItem.id,
+                    name: normalizedItem.name,
+                    inputQty: cloned.inputQty,
+                    inputUnit: unitKey,
+                    baseQty: conversion.baseQty,
+                    baseUnitType: conversion.baseUnitType,
+                    cost: conversion.cost,
+                    isEstimated: conversion.isEstimated,
+                    conversionNote: conversion.conversionNote
+                };
+            };
+
+            const recalculateIngredients = (ingredientList) => {
+                return (ingredientList || []).map((ingredient, index) => recalculateIngredient(ingredient, index));
+            };
+
+            const getIngredientsCurrentCost = (ingredientList) => {
+                return recalculateIngredients(ingredientList).reduce((sum, ingredient) => sum + toNumber(ingredient.cost, 0), 0);
+            };
+
             const filteredRecipes = normalizedRecipes.filter(recipe => {
                 const query = dishSearch.trim().toLowerCase();
                 const haystack = [
@@ -2888,8 +2958,32 @@
                 const matchesTag = !activeTag || recipe.tags.includes(activeTag);
                 return matchesSearch && matchesTag;
             });
+
             const visibleRecipeIds = filteredRecipes.map(recipe => recipe.id);
             const allVisibleRecipesSelected = visibleRecipeIds.length > 0 && visibleRecipeIds.every(id => selectedRecipeIds.includes(id));
+
+            const groupedFilteredRecipes = (() => {
+                if (activeTag) {
+                    return filteredRecipes.length > 0 ? [{ key: `tag:${activeTag}`, label: activeTag, recipes: filteredRecipes }] : [];
+                }
+
+                const groups = [];
+                allTags.forEach(tag => {
+                    const taggedRecipes = filteredRecipes.filter(recipe => recipe.tags.includes(tag));
+                    if (taggedRecipes.length > 0) {
+                        groups.push({ key: `tag:${tag}`, label: tag, recipes: taggedRecipes });
+                    }
+                });
+
+                const untaggedRecipes = filteredRecipes.filter(recipe => recipe.tags.length === 0);
+                if (untaggedRecipes.length > 0) {
+                    groups.push({ key: 'untagged', label: allTags.length > 0 ? 'No Tag' : 'Dishes', recipes: untaggedRecipes });
+                }
+
+                return groups;
+            })();
+
+            const visibleTagGroupKeys = groupedFilteredRecipes.map(group => group.key);
 
             const resetRecipeForm = () => {
                 setRecipeName("");
@@ -2898,6 +2992,7 @@
                 setSelectedItemId("");
                 setIngredientQty("");
                 setIngredientUnit("g");
+                setShowTagSuggestions(false);
             };
 
             const handleSelectedItemChange = (e) => {
@@ -2908,12 +3003,17 @@
             };
 
             const getRecipeCurrentCost = (recipe) => {
-                return recipe.ingredients.reduce((sum, ing) => {
-                    const item = inventory.find(i => i.id === ing.inventoryId);
-                    if (!item) return sum + toNumber(ing.cost, 0);
-                    const normalizedItem = normalizeInventoryItem(item);
-                    return sum + (toNumber(ing.baseQty, 0) * normalizedItem.costPerBaseUnit);
-                }, 0);
+                return getIngredientsCurrentCost(recipe.ingredients || []);
+            };
+
+            const addTagToInput = (tag) => {
+                const cleanTag = String(tag || '').trim();
+                if (!cleanTag) return;
+                const currentTags = normalizeTags(recipeTags);
+                const hasTag = currentTags.some(existingTag => existingTag.toLowerCase() === cleanTag.toLowerCase());
+                const nextTags = hasTag ? currentTags : [...currentTags, cleanTag];
+                setRecipeTags(nextTags.join(', '));
+                setShowTagSuggestions(false);
             };
 
             const handleAddIngredient = (e) => {
@@ -2938,10 +3038,10 @@
                 const conversion = convertIngredientForItem(qty, ingredientUnit, normalizedItem);
 
                 const newIngredient = {
-                    id: Date.now().toString(),
+                    id: makeId(),
                     inventoryId: normalizedItem.id,
                     name: normalizedItem.name,
-                    inputQty: qty,
+                    inputQty: ingredientQty,
                     inputUnit: ingredientUnit,
                     baseQty: conversion.baseQty,
                     baseUnitType: conversion.baseUnitType,
@@ -2950,44 +3050,43 @@
                     conversionNote: conversion.conversionNote
                 };
 
-                setIngredients([...ingredients, newIngredient]);
+                setIngredients(prev => [...prev, newIngredient]);
                 setIngredientQty("");
                 setSelectedItemId("");
                 setIngredientUnit("g");
             };
 
+            const handleIngredientMeasurementChange = (ingredientId, field, value) => {
+                setIngredients(prev => prev.map((ingredient, index) => {
+                    if (ingredient.id !== ingredientId) return ingredient;
+                    return recalculateIngredient({ ...ingredient, [field]: value }, index);
+                }));
+            };
+
+            const handleRemoveIngredient = (ingredientId) => {
+                setIngredients(prev => prev.filter(ingredient => ingredient.id !== ingredientId));
+            };
+
             const handleSaveRecipe = () => {
-                if(!recipeName.trim()) return;
-                const recalculatedIngredients = ingredients.map(ing => {
-                    const item = inventory.find(i => i.id === ing.inventoryId);
-                    if (!item) return { ...ing, cost: toNumber(ing.cost, 0) };
-                    const normalizedItem = normalizeInventoryItem(item);
-                    const conversion = convertIngredientForItem(ing.inputQty, ing.inputUnit, normalizedItem);
-                    return {
-                        ...ing,
-                        baseQty: conversion.baseQty,
-                        baseUnitType: conversion.baseUnitType,
-                        cost: conversion.cost,
-                        isEstimated: conversion.isEstimated,
-                        conversionNote: conversion.conversionNote
-                    };
-                });
+                if (!recipeName.trim()) return;
+
+                const recalculatedIngredients = recalculateIngredients(ingredients);
                 const totalCost = recalculatedIngredients.reduce((sum, ing) => sum + toNumber(ing.cost, 0), 0);
-                
                 const newRecipe = normalizeRecipe({
-                    id: editingRecipeId || Date.now().toString(),
+                    id: editingRecipeId || makeId(),
                     name: recipeName.trim(),
                     tags: normalizeTags(recipeTags),
                     ingredients: recalculatedIngredients,
-                    totalCost: totalCost
+                    totalCost
                 });
 
-                if (editingRecipeId) {
-                    saveRecipes(recipes.map(r => r.id === editingRecipeId ? newRecipe : r));
-                } else {
-                    saveRecipes([...recipes, newRecipe]);
-                }
+                const existingRecipes = normalizedRecipes;
+                const recipeExists = editingRecipeId && existingRecipes.some(recipe => recipe.id === editingRecipeId);
+                const nextRecipes = recipeExists
+                    ? existingRecipes.map(recipe => recipe.id === editingRecipeId ? newRecipe : recipe)
+                    : [...existingRecipes, newRecipe];
 
+                saveRecipes(nextRecipes);
                 setIsCreating(false);
                 setEditingRecipeId(null);
                 resetRecipeForm();
@@ -2997,17 +3096,18 @@
                 const normalizedRecipe = normalizeRecipe(recipe);
                 setRecipeName(normalizedRecipe.name);
                 setRecipeTags(normalizedRecipe.tags.join(', '));
-                setIngredients(normalizedRecipe.ingredients);
+                setIngredients(recalculateIngredients((normalizedRecipe.ingredients || []).map((ingredient, index) => cloneIngredient(ingredient, index))));
                 setEditingRecipeId(normalizedRecipe.id);
                 setSelectedItemId("");
                 setIngredientQty("");
                 setIngredientUnit("g");
+                setShowTagSuggestions(false);
                 setIsCreating(true);
             };
 
             const handleDeleteRecipe = (id) => {
-                if(confirm("Delete this dish?")) {
-                    saveRecipes(recipes.filter(r => r.id !== id));
+                if (confirm("Delete this dish?")) {
+                    saveRecipes(normalizedRecipes.filter(recipe => recipe.id !== id));
                     setSelectedRecipeIds(prev => prev.filter(recipeId => recipeId !== id));
                 }
             };
@@ -3029,7 +3129,7 @@
                 if (selectedRecipeIds.length === 0) return;
                 if (confirm(`Delete ${selectedRecipeIds.length} selected dish${selectedRecipeIds.length === 1 ? '' : 'es'}?`)) {
                     const selectedSet = new Set(selectedRecipeIds);
-                    saveRecipes(recipes.filter(recipe => !selectedSet.has(recipe.id)));
+                    saveRecipes(normalizedRecipes.filter(recipe => !selectedSet.has(recipe.id)));
                     setSelectedRecipeIds([]);
                 }
             };
@@ -3038,13 +3138,20 @@
                 setCollapsedRecipeIds(prev => prev.includes(id) ? prev.filter(recipeId => recipeId !== id) : [...prev, id]);
             };
 
+            const toggleTagGroupCollapsed = (key) => {
+                setCollapsedTagGroups(prev => prev.includes(key) ? prev.filter(groupKey => groupKey !== key) : [...prev, key]);
+            };
+
             const collapseAllVisibleRecipes = () => {
                 setCollapsedRecipeIds(prev => Array.from(new Set([...prev, ...visibleRecipeIds])));
+                setCollapsedTagGroups(prev => Array.from(new Set([...prev, ...visibleTagGroupKeys])));
             };
 
             const expandAllVisibleRecipes = () => {
                 const visibleSet = new Set(visibleRecipeIds);
+                const visibleGroupSet = new Set(visibleTagGroupKeys);
                 setCollapsedRecipeIds(prev => prev.filter(id => !visibleSet.has(id)));
+                setCollapsedTagGroups(prev => prev.filter(key => !visibleGroupSet.has(key)));
             };
 
             const handleCloseCreate = () => {
@@ -3057,6 +3164,64 @@
                 setEditingRecipeId(null);
                 resetRecipeForm();
                 setIsCreating(true);
+            };
+
+            const renderRecipeCard = (recipe) => {
+                const isCollapsed = collapsedRecipeIds.includes(recipe.id);
+                const isSelected = selectedRecipeIds.includes(recipe.id);
+                const currentCost = getRecipeCurrentCost(recipe);
+
+                return (
+                    <div key={recipe.id} className={`${isSelected ? 'ring-2 ring-diner-primary bg-orange-50/50' : 'bg-diner-surface'} border border-diner-border p-6 rounded-2xl shadow-sm flex flex-col relative group transition-all hover:shadow-md`}>
+                        <div className="absolute top-5 right-5 flex space-x-3 opacity-100 transition-opacity">
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleRecipeSelected(recipe.id)} className="mt-1" />
+                            <button onClick={() => handleEditRecipe(recipe)} className="text-stone-400 hover:text-diner-primary transition-colors bg-white rounded-full shadow-sm p-1" title="Edit dish">
+                                <Icon name="edit2" className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDeleteRecipe(recipe.id)} className="text-stone-400 hover:text-diner-danger transition-colors bg-white rounded-full shadow-sm p-1" title="Delete dish">
+                                <Icon name="trash2" className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <h3 className="text-xl font-bold mb-3 pr-24 text-diner-text leading-tight">{recipe.name}</h3>
+                        {recipe.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {recipe.tags.map(tag => (
+                                    <button key={tag} onClick={() => setActiveTag(tag)} className="bg-stone-50 text-diner-muted border border-diner-border rounded-full px-2.5 py-1 text-xs font-bold hover:text-diner-primary transition-colors">
+                                        {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <button onClick={() => toggleRecipeCollapsed(recipe.id)} className="self-start mb-4 text-sm text-diner-primary font-bold hover:underline">
+                            {isCollapsed ? 'Expand details' : 'Collapse details'}
+                        </button>
+                        {!isCollapsed && (
+                            <div className="flex-1 space-y-2.5 mb-6">
+                                <div className="text-xs text-diner-muted font-bold uppercase tracking-wider border-b border-stone-100 pb-2 mb-3">Ingredients:</div>
+                                {recipe.ingredients.length === 0 ? (
+                                    <div className="text-sm text-diner-muted font-medium">No ingredients saved.</div>
+                                ) : recipe.ingredients.slice(0, 5).map((ing, index) => {
+                                    const recalculated = recalculateIngredient(ing, index);
+                                    return (
+                                        <div key={ing.id || `${recipe.id}_${index}`} className="text-sm flex justify-between items-center gap-3">
+                                            <span className="truncate pr-2 text-diner-muted font-medium">
+                                                <span className="text-diner-text font-bold">{recalculated.inputQty} {UNITS[recalculated.inputUnit]?.label.split(' ')[0] || recalculated.inputUnit}</span> {recalculated.name}
+                                            </span>
+                                            <span className="shrink-0 text-stone-400 text-xs font-semibold">{formatCurrency(recalculated.cost)}</span>
+                                        </div>
+                                    );
+                                })}
+                                {recipe.ingredients.length > 5 && (
+                                    <div className="text-xs text-stone-400 italic mt-3 font-medium">+ {recipe.ingredients.length - 5} more ingredients</div>
+                                )}
+                            </div>
+                        )}
+                        <div className="pt-5 border-t border-stone-100 flex justify-between items-end mt-auto">
+                            <span className="text-xs text-diner-muted font-bold uppercase tracking-wider">Dish Cost</span>
+                            <span className="text-2xl font-bold text-diner-accent">{formatCurrency(currentCost)}</span>
+                        </div>
+                    </div>
+                );
             };
 
             return (
@@ -3085,29 +3250,48 @@
                                             type="text" 
                                             placeholder="e.g. Buttermilk Pancakes" 
                                             value={recipeName}
-                                            onChange={e=>setRecipeName(e.target.value)}
+                                            onChange={e => setRecipeName(e.target.value)}
                                             className="bg-transparent text-3xl font-bold text-diner-text outline-none w-full placeholder-stone-300"
                                         />
                                     </div>
-                                    <div>
+                                    <div className="relative">
                                         <label className="block text-sm font-semibold text-diner-text mb-1">Dish Tags <span className="text-diner-muted font-normal">(optional)</span></label>
                                         <input
                                             type="text"
                                             placeholder="breakfast, smoked, special"
                                             value={recipeTags}
-                                            onChange={e=>setRecipeTags(e.target.value)}
+                                            onFocus={() => setShowTagSuggestions(true)}
+                                            onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                                            onChange={e => setRecipeTags(e.target.value)}
                                             className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium"
                                         />
+                                        {showTagSuggestions && allTags.length > 0 && (
+                                            <div className="absolute z-20 mt-2 w-full bg-white border border-diner-border rounded-xl shadow-xl p-3">
+                                                <div className="text-xs font-bold uppercase tracking-wider text-diner-muted mb-2">Existing Tags</div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {allTags.map(tag => (
+                                                        <button
+                                                            key={tag}
+                                                            type="button"
+                                                            onMouseDown={event => { event.preventDefault(); addTagToInput(tag); }}
+                                                            className="bg-stone-50 hover:bg-orange-50 text-diner-muted hover:text-diner-primary border border-diner-border rounded-full px-3 py-1.5 text-xs font-bold transition-colors"
+                                                        >
+                                                            {tag}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <button onClick={handleCloseCreate} className="self-start text-stone-400 hover:text-diner-danger transition-colors bg-stone-100 hover:bg-red-50 p-2 rounded-full"><Icon name="x" className="w-5 h-5"/></button>
                             </div>
 
                             <div className="bg-stone-50 p-6 rounded-xl border border-diner-border shadow-inner">
-                                <h4 className="text-sm font-bold text-diner-text mb-4 uppercase tracking-wider">Add an Ingredient from Pantry</h4>
+                                <h4 className="text-sm font-bold text-diner-text mb-4 uppercase tracking-wider">Add Ingredient</h4>
                                 <form onSubmit={handleAddIngredient} className="flex flex-col md:flex-row gap-4 items-end">
                                     <div className="flex-1">
-                                        <label className="block text-sm font-semibold text-diner-text mb-1">Item</label>
+                                        <label className="block text-sm font-semibold text-diner-text mb-1">Pantry Item</label>
                                         <select required value={selectedItemId} onChange={handleSelectedItemChange} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium">
                                             <option value="" disabled>Choose pantry item...</option>
                                             {inventory.map(item => {
@@ -3119,12 +3303,12 @@
                                         </select>
                                     </div>
                                     <div className="w-32">
-                                        <label className="block text-sm font-semibold text-diner-text mb-1">Amount Used</label>
-                                        <input required type="number" step="any" min="0" value={ingredientQty} onChange={e=>setIngredientQty(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium" placeholder="0" />
+                                        <label className="block text-sm font-semibold text-diner-text mb-1">Amount</label>
+                                        <input required type="number" step="any" min="0" value={ingredientQty} onChange={e => setIngredientQty(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium" placeholder="0" />
                                     </div>
                                     <div className="w-40">
                                         <label className="block text-sm font-semibold text-diner-text mb-1">Measurement</label>
-                                        <select value={ingredientUnit} onChange={e=>setIngredientUnit(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium">
+                                        <select value={ingredientUnit} onChange={e => setIngredientUnit(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium">
                                             {ingredientUnitOptions.map(([key, val]) => (
                                                 <option key={key} value={key}>{val.label}</option>
                                             ))}
@@ -3136,40 +3320,64 @@
                                 </form>
                             </div>
 
-                            <div className="border border-diner-border rounded-xl overflow-hidden shadow-sm">
-                                <table className="w-full text-left text-sm">
+                            <div className="border border-diner-border rounded-xl overflow-x-auto shadow-sm">
+                                <table className="w-full text-left text-sm min-w-[760px]">
                                     <thead className="bg-stone-50 text-diner-text border-b border-diner-border">
                                         <tr>
                                             <th className="p-4 font-semibold">Ingredient</th>
-                                            <th className="p-4 font-semibold">Amount Used</th>
+                                            <th className="p-4 font-semibold">Amount</th>
+                                            <th className="p-4 font-semibold">Measurement</th>
                                             <th className="p-4 font-semibold">Base Conversion</th>
-                                            <th className="p-4 font-semibold text-right">Calculated Cost</th>
+                                            <th className="p-4 font-semibold text-right">Cost</th>
                                             <th className="p-4 font-semibold text-center"></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-stone-100 bg-white">
                                         {ingredients.length === 0 ? (
-                                            <tr><td colSpan="5" className="p-8 text-center text-diner-muted font-medium">No ingredients added yet.</td></tr>
-                                        ) : ingredients.map((ing) => (
-                                            <tr key={ing.id} className="hover:bg-stone-50 transition-colors">
-                                                <td className="p-4 font-bold text-diner-text">{ing.name}</td>
-                                                <td className="p-4 text-diner-text font-medium">{ing.inputQty} {UNITS[ing.inputUnit]?.label || ing.inputUnit}</td>
-                                                <td className="p-4 text-stone-400 text-xs font-medium">
-                                                    <div>≈ {formatUnitDisplay(ing.baseQty, ing.baseUnitType)}</div>
-                                                    {ing.isEstimated && <div className="mt-1 text-diner-primary font-semibold">Estimate: {ing.conversionNote}</div>}
-                                                </td>
-                                                <td className="p-4 text-right font-bold text-diner-accent">{formatCurrency(ing.cost)}</td>
-                                                <td className="p-4 text-center">
-                                                    <button onClick={() => setIngredients(ingredients.filter(i=>i.id !== ing.id))} className="text-stone-400 hover:text-diner-danger transition-colors p-1"><Icon name="x" className="w-4 h-4 mx-auto"/></button>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                            <tr><td colSpan="6" className="p-8 text-center text-diner-muted font-medium">No ingredients added yet.</td></tr>
+                                        ) : ingredients.map((ing, index) => {
+                                            const recalculated = recalculateIngredient(ing, index);
+                                            return (
+                                                <tr key={ing.id} className="hover:bg-stone-50 transition-colors">
+                                                    <td className="p-4 font-bold text-diner-text">{recalculated.name}</td>
+                                                    <td className="p-4 text-diner-text font-medium">
+                                                        <input
+                                                            type="number"
+                                                            step="any"
+                                                            min="0"
+                                                            value={ing.inputQty}
+                                                            onChange={event => handleIngredientMeasurementChange(ing.id, 'inputQty', event.target.value)}
+                                                            className="w-28 bg-white border border-stone-300 rounded-lg p-2 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary"
+                                                        />
+                                                    </td>
+                                                    <td className="p-4 text-diner-text font-medium">
+                                                        <select
+                                                            value={ing.inputUnit}
+                                                            onChange={event => handleIngredientMeasurementChange(ing.id, 'inputUnit', event.target.value)}
+                                                            className="w-36 bg-white border border-stone-300 rounded-lg p-2 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary"
+                                                        >
+                                                            {ingredientUnitOptions.map(([key, val]) => (
+                                                                <option key={key} value={key}>{val.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    </td>
+                                                    <td className="p-4 text-stone-400 text-xs font-medium">
+                                                        <div>≈ {formatUnitDisplay(recalculated.baseQty, recalculated.baseUnitType)}</div>
+                                                        {recalculated.isEstimated && <div className="mt-1 text-diner-primary font-semibold">Estimate: {recalculated.conversionNote}</div>}
+                                                    </td>
+                                                    <td className="p-4 text-right font-bold text-diner-accent">{formatCurrency(recalculated.cost)}</td>
+                                                    <td className="p-4 text-center">
+                                                        <button onClick={() => handleRemoveIngredient(ing.id)} className="text-stone-400 hover:text-diner-danger transition-colors p-1"><Icon name="x" className="w-4 h-4 mx-auto"/></button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                     {ingredients.length > 0 && (
                                         <tfoot className="bg-stone-50 border-t border-diner-border">
                                             <tr>
-                                                <td colSpan="3" className="p-5 text-right font-bold text-diner-text uppercase tracking-wider text-xs">Total Dish Cost:</td>
-                                                <td className="p-5 text-right font-bold text-2xl text-diner-accent">{formatCurrency(ingredients.reduce((s, i) => s + i.cost, 0))}</td>
+                                                <td colSpan="4" className="p-5 text-right font-bold text-diner-text uppercase tracking-wider text-xs">Total Dish Cost:</td>
+                                                <td className="p-5 text-right font-bold text-2xl text-diner-accent">{formatCurrency(getIngredientsCurrentCost(ingredients))}</td>
                                                 <td></td>
                                             </tr>
                                         </tfoot>
@@ -3196,12 +3404,12 @@
                                         <input
                                             type="text"
                                             value={dishSearch}
-                                            onChange={e=>setDishSearch(e.target.value)}
+                                            onChange={e => setDishSearch(e.target.value)}
                                             placeholder="Search dishes, tags, or ingredients..."
                                             className="bg-transparent border-none outline-none text-diner-text w-full placeholder-stone-400 font-medium py-3"
                                         />
                                     </div>
-                                    <select value={activeTag} onChange={e=>setActiveTag(e.target.value)} className="w-full bg-white border border-stone-300 rounded-xl p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary font-medium">
+                                    <select value={activeTag} onChange={e => setActiveTag(e.target.value)} className="w-full bg-white border border-stone-300 rounded-xl p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary font-medium">
                                         <option value="">All Tags</option>
                                         {allTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
                                     </select>
@@ -3243,55 +3451,35 @@
                                     No dishes match the current search or tag filter.
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {filteredRecipes.map(recipe => {
-                                        const isCollapsed = collapsedRecipeIds.includes(recipe.id);
-                                        const isSelected = selectedRecipeIds.includes(recipe.id);
+                                <div className="space-y-4">
+                                    {groupedFilteredRecipes.map(group => {
+                                        const isGroupCollapsed = collapsedTagGroups.includes(group.key);
+                                        const groupCost = group.recipes.reduce((sum, recipe) => sum + getRecipeCurrentCost(recipe), 0);
                                         return (
-                                            <div key={recipe.id} className={`${isSelected ? 'ring-2 ring-diner-primary bg-orange-50/50' : 'bg-diner-surface'} border border-diner-border p-6 rounded-2xl shadow-sm flex flex-col relative group transition-all hover:shadow-md`}>
-                                                <div className="absolute top-5 right-5 flex space-x-3 opacity-100 transition-opacity">
-                                                    <input type="checkbox" checked={isSelected} onChange={() => toggleRecipeSelected(recipe.id)} className="mt-1" />
-                                                    <button onClick={() => handleEditRecipe(recipe)} className="text-stone-400 hover:text-diner-primary transition-colors bg-white rounded-full shadow-sm p-1">
-                                                        <Icon name="edit2" className="w-4 h-4" />
-                                                    </button>
-                                                    <button onClick={() => handleDeleteRecipe(recipe.id)} className="text-stone-400 hover:text-diner-danger transition-colors bg-white rounded-full shadow-sm p-1">
-                                                        <Icon name="trash2" className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                                <h3 className="text-xl font-bold mb-3 pr-24 text-diner-text leading-tight">{recipe.name}</h3>
-                                                {recipe.tags.length > 0 && (
-                                                    <div className="flex flex-wrap gap-2 mb-4">
-                                                        {recipe.tags.map(tag => (
-                                                            <button key={tag} onClick={() => setActiveTag(tag)} className="bg-stone-50 text-diner-muted border border-diner-border rounded-full px-2.5 py-1 text-xs font-bold hover:text-diner-primary transition-colors">
-                                                                {tag}
-                                                            </button>
-                                                        ))}
+                                            <section key={group.key} className="bg-diner-surface border border-diner-border rounded-2xl shadow-sm overflow-hidden">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleTagGroupCollapsed(group.key)}
+                                                    className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-4 text-left hover:bg-stone-50 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="w-8 h-8 rounded-full bg-orange-50 border border-orange-200 text-diner-primary flex items-center justify-center font-black">{isGroupCollapsed ? '+' : '-'}</span>
+                                                        <div>
+                                                            <h3 className="text-xl font-bold text-diner-text capitalize">{group.label}</h3>
+                                                            <div className="text-xs text-diner-muted font-bold uppercase tracking-wider">{group.recipes.length} dish{group.recipes.length === 1 ? '' : 'es'}</div>
+                                                        </div>
                                                     </div>
-                                                )}
-                                                <button onClick={() => toggleRecipeCollapsed(recipe.id)} className="self-start mb-4 text-sm text-diner-primary font-bold hover:underline">
-                                                    {isCollapsed ? 'Expand details' : 'Collapse details'}
+                                                    <div className="text-right">
+                                                        <div className="text-xs text-diner-muted font-bold uppercase tracking-wider">Group Cost</div>
+                                                        <div className="text-xl font-bold text-diner-accent">{formatCurrency(groupCost)}</div>
+                                                    </div>
                                                 </button>
-                                                {!isCollapsed && (
-                                                    <div className="flex-1 space-y-2.5 mb-6">
-                                                        <div className="text-xs text-diner-muted font-bold uppercase tracking-wider border-b border-stone-100 pb-2 mb-3">Ingredients:</div>
-                                                        {recipe.ingredients.slice(0, 5).map(ing => (
-                                                            <div key={ing.id} className="text-sm flex justify-between items-center">
-                                                                <span className="truncate pr-2 text-diner-muted font-medium">
-                                                                    <span className="text-diner-text font-bold">{ing.inputQty} {UNITS[ing.inputUnit]?.label.split(' ')[0] || ing.inputUnit}</span> {ing.name}
-                                                                </span>
-                                                                <span className="shrink-0 text-stone-400 text-xs font-semibold">{formatCurrency(ing.cost)}</span>
-                                                            </div>
-                                                        ))}
-                                                        {recipe.ingredients.length > 5 && (
-                                                            <div className="text-xs text-stone-400 italic mt-3 font-medium">+ {recipe.ingredients.length - 5} more ingredients</div>
-                                                        )}
+                                                {!isGroupCollapsed && (
+                                                    <div className="p-4 pt-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                        {group.recipes.map(recipe => renderRecipeCard(recipe))}
                                                     </div>
                                                 )}
-                                                <div className="pt-5 border-t border-stone-100 flex justify-between items-end mt-auto">
-                                                    <span className="text-xs text-diner-muted font-bold uppercase tracking-wider">Dish Cost</span>
-                                                    <span className="text-2xl font-bold text-diner-accent">{formatCurrency(getRecipeCurrentCost(recipe))}</span>
-                                                </div>
-                                            </div>
+                                            </section>
                                         );
                                     })}
                                 </div>
