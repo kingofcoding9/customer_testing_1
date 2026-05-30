@@ -322,6 +322,27 @@
             return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         };
 
+        const normalizeImportedExpirationDate = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+
+            if (/^\d+(?:\.\d+)?$/.test(raw)) {
+                const serial = Number(raw);
+                if (serial > 25000 && serial < 80000) {
+                    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+                    const date = new Date(excelEpoch.getTime() + Math.floor(serial) * 86400000);
+                    return `${String(date.getUTCFullYear()).padStart(4, '0')}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+                }
+            }
+
+            const fromParts = getExpirationDateFromParts(getExpirationParts(raw));
+            if (fromParts) return fromParts;
+
+            const parsed = new Date(raw);
+            if (Number.isNaN(parsed.getTime())) return '';
+            return `${String(parsed.getFullYear()).padStart(4, '0')}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+        };
+
         function ExpirationDateInputs({ value, onChange }) {
             const parts = value || { day: '', month: '', year: '' };
             const updatePart = (field, rawValue, maxLength) => {
@@ -1101,9 +1122,25 @@
                     ['price', 10], ['cost', 10], ['total cost', 11], ['amount due', 8],
                     ['line total', 10], ['ext', 5], ['value', 4], ['charge', 5]
                 ];
+                const expirationTerms = [
+                    ['expiration date', 14], ['expiration', 12], ['expire date', 12], ['exp date', 12],
+                    ['expires', 10], ['expire', 9], ['best by', 10], ['use by', 10], ['sell by', 9],
+                    ['date code', 6], ['date', 4]
+                ];
 
-                const terms = role === 'name' ? nameTerms : role === 'size' ? sizeTerms : priceTerms;
-                return terms.reduce((sum, [term, weight]) => value.includes(term) ? sum + weight : sum, 0);
+                const roleTerms = {
+                    name: nameTerms,
+                    size: sizeTerms,
+                    price: priceTerms,
+                    expiration: expirationTerms
+                };
+                const terms = roleTerms[role] || [];
+                const keywordScore = terms.reduce((sum, [term, weight]) => value.includes(term) ? sum + weight : sum, 0);
+                const looksLikeDate = role === 'expiration' && (
+                    /\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(value) ||
+                    /\d{1,2}[-/]\d{1,2}[-/]\d{2,4}/.test(value)
+                );
+                return keywordScore + (looksLikeDate ? 6 : 0);
             };
 
             for (let colIndex = 0; colIndex < maxCols; colIndex++) {
@@ -1112,7 +1149,8 @@
                     colIndex,
                     name: scoreText(text, 'name'),
                     size: scoreText(text, 'size'),
-                    price: scoreText(text, 'price')
+                    price: scoreText(text, 'price'),
+                    expiration: scoreText(text, 'expiration')
                 });
             }
 
@@ -1130,6 +1168,7 @@
                 }
             };
 
+            pick('expiration');
             pick('price');
             pick('size');
             pick('name');
@@ -1141,6 +1180,7 @@
             return chosen;
         };
 
+        
         // Heuristic Parser to convert strings like "6/1.5 LB" into base units
         const parsePackSizeString = (sizeStr) => {
             if (!sizeStr) {
@@ -2306,6 +2346,7 @@
                 const nameCol = Object.keys(columnMap).find(key => columnMap[key] === 'name');
                 const sizeCol = Object.keys(columnMap).find(key => columnMap[key] === 'size');
                 const priceCol = Object.keys(columnMap).find(key => columnMap[key] === 'price');
+                const expirationCol = Object.keys(columnMap).find(key => columnMap[key] === 'expiration');
 
                 if (nameCol === undefined || sizeCol === undefined || priceCol === undefined) {
                     alert("Please choose the Item Name, Pack Size or Quantity, and Total Price columns before continuing.");
@@ -2328,6 +2369,7 @@
                     
                     const rawPrice = row[priceCol]?.replace(/[^0-9.]/g, '') || "0";
                     const totalPrice = parseFloat(rawPrice);
+                    const importedExpirationDate = expirationCol === undefined ? '' : normalizeImportedExpirationDate(row[expirationCol] || '');
 
                     const sizeData = parsePackSizeString(sizeStr);
 
@@ -2345,17 +2387,26 @@
                         displayQuantity: toNumber(sizeData.displayQuantity, safeTotalBaseUnits / ((UNITS[sizeData.preferredUnit] || { toBase: 1 }).toBase || 1)),
                         displayUnit: sizeData.displayUnit || sizeData.preferredUnit,
                         totalBaseUnits: safeTotalBaseUnits,
-                        costPerBaseUnit: calculateCostPerBaseUnit(safeTotalPrice, safeTotalBaseUnits)
+                        costPerBaseUnit: calculateCostPerBaseUnit(safeTotalPrice, safeTotalBaseUnits),
+                        expirationDate: importedExpirationDate
                     });
                 }
                 setProcessedItems(items);
-                setStep(3);
+                setStep(items.some(item => !item.expirationDate) ? 4 : 3);
             };
 
             const updateProcessedItem = (id, field, value) => {
                 setProcessedItems(prev => prev.map(item => {
                     if (item.id === id) {
                         const updatedItem = { ...item, [field]: value };
+                        if (field === 'expirationParts') {
+                            updatedItem.expirationParts = value;
+                            updatedItem.expirationDate = getExpirationDateFromParts(value);
+                        }
+                        if (field === 'expirationDate') {
+                            updatedItem.expirationDate = normalizeImportedExpirationDate(value);
+                            updatedItem.expirationParts = getExpirationParts(updatedItem.expirationDate);
+                        }
                         if (field === 'totalPrice') {
                             updatedItem.totalPrice = Math.max(0, toNumber(value, 0));
                             updatedItem.purchasePrice = updatedItem.totalPrice;
@@ -2383,15 +2434,65 @@
                 setProcessedItems(prev => prev.filter(item => item.id !== id));
             };
 
+            const getProcessedItemExpirationInputValue = (item) => {
+                return item.expirationParts || getExpirationParts(item.expirationDate || '');
+            };
+
+            const getValidatedProcessedItems = () => {
+                let invalidItemName = '';
+                const nextItems = processedItems.map(item => {
+                    const parts = getProcessedItemExpirationInputValue(item);
+                    const expirationDate = getExpirationDateFromParts(parts);
+                    if (!invalidItemName && hasAnyExpirationDatePart(parts) && !expirationDate) {
+                        invalidItemName = item.name || 'one imported item';
+                    }
+                    const { expirationParts, ...cleanItem } = item;
+                    return {
+                        ...cleanItem,
+                        expirationDate: expirationDate || cleanItem.expirationDate || ''
+                    };
+                });
+
+                if (invalidItemName) {
+                    alert(`Please finish the expiration date for ${invalidItemName}, or clear its day, month, and year boxes.`);
+                    return null;
+                }
+
+                return nextItems;
+            };
+
+            const finalizeProcessedExpirationDates = () => {
+                const nextItems = getValidatedProcessedItems();
+                if (!nextItems) return false;
+                setProcessedItems(nextItems);
+                return true;
+            };
+
+            const continueToReviewWithoutAddingDates = () => {
+                if (finalizeProcessedExpirationDates()) setStep(3);
+            };
+
+            const continueToReviewWithDates = () => {
+                if (finalizeProcessedExpirationDates()) setStep(3);
+            };
+
             const confirmAndMerge = () => {
-                const cleanItems = processedItems.map(i => normalizeInventoryItem({
-                    ...i,
-                    totalPrice: Math.max(0, toNumber(i.totalPrice, 0)),
-                    purchasePrice: Math.max(0, toNumber(i.totalPrice, 0)),
-                    preferredUnit: i.displayUnit || i.preferredUnit,
-                    totalBaseUnits: Math.max(0, toNumber(i.totalBaseUnits, 0)),
-                    originalSizeString: i.originalSizeString || `${toNumber(i.displayQuantity, 0)} ${i.displayUnit || i.preferredUnit || i.baseUnit}`
-                }));
+                const readyItems = getValidatedProcessedItems();
+                if (!readyItems) return;
+
+                const cleanItems = readyItems.map(i => {
+                    const expirationParts = i.expirationParts || getExpirationParts(i.expirationDate || '');
+                    const { expirationParts: _unusedExpirationParts, ...itemForSave } = i;
+                    return normalizeInventoryItem({
+                        ...itemForSave,
+                        totalPrice: Math.max(0, toNumber(i.totalPrice, 0)),
+                        purchasePrice: Math.max(0, toNumber(i.totalPrice, 0)),
+                        preferredUnit: i.displayUnit || i.preferredUnit,
+                        totalBaseUnits: Math.max(0, toNumber(i.totalBaseUnits, 0)),
+                        originalSizeString: i.originalSizeString || `${toNumber(i.displayQuantity, 0)} ${i.displayUnit || i.preferredUnit || i.baseUnit}`,
+                        expirationDate: getExpirationDateFromParts(expirationParts) || normalizeImportedExpirationDate(i.expirationDate || '')
+                    });
+                });
                 const result = mergeNewItemsIntoInventory(inventory, cleanItems);
 
                 if (result.conflicts.length > 0) {
@@ -2488,6 +2589,7 @@
                                                         <option value="name">Item Name</option>
                                                         <option value="size">Pack Size or Quantity</option>
                                                         <option value="price">Total Price</option>
+                                                        <option value="expiration">Expiration Date</option>
                                                     </select>
                                                 </th>
                                             ))}
@@ -2504,6 +2606,69 @@
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 4 && (
+                        <div className="bg-diner-surface border border-diner-border rounded-2xl shadow-sm overflow-hidden animation-fadeIn">
+                            <div className="p-8 text-center space-y-5">
+                                <div className="mx-auto w-16 h-16 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center text-diner-primary">
+                                    <Icon name="alertTriangle" className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold text-diner-text">Add Expiration Dates?</h3>
+                                    <p className="text-diner-muted mt-2">
+                                        {processedItems.filter(item => !item.expirationDate).length} imported item{processedItems.filter(item => !item.expirationDate).length === 1 ? '' : 's'} do not have an expiration date.
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto">
+                                    <button
+                                        type="button"
+                                        onClick={confirmAndMerge}
+                                        className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-5 rounded-xl transition-colors"
+                                    >
+                                        No, Save Without Dates
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep(5)}
+                                        className="bg-diner-primary hover:bg-diner-hover text-white font-bold py-3 px-5 rounded-xl transition-colors shadow-sm"
+                                    >
+                                        Yes, Add Dates
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 5 && (
+                        <div className="bg-diner-surface border border-diner-border rounded-2xl shadow-sm overflow-hidden animation-fadeIn">
+                            <div className="p-6 border-b border-diner-border flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-orange-50/50">
+                                <div>
+                                    <h3 className="text-xl font-bold text-diner-primary">Set Expiration Dates</h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={confirmAndMerge}
+                                    className="bg-diner-primary hover:bg-diner-hover text-white font-bold py-2.5 px-6 rounded-lg transition-colors flex items-center justify-center shadow-sm"
+                                >
+                                    Save Items to Pantry <Icon name="save" className="w-4 h-4 ml-2" />
+                                </button>
+                            </div>
+                            <div className="divide-y divide-stone-100 max-h-[65vh] overflow-y-auto">
+                                {processedItems.filter(item => !item.expirationDate || item.expirationParts).map(item => (
+                                    <div key={item.id} className="p-5 grid grid-cols-1 md:grid-cols-[1fr_22rem] gap-4 items-center hover:bg-stone-50 transition-colors">
+                                        <div>
+                                            <div className="font-bold text-diner-text">{item.name}</div>
+                                            <div className="text-sm text-diner-muted">{item.originalSizeString || formatUnitDisplay(item.totalBaseUnits, item.baseUnit)}</div>
+                                        </div>
+                                        <ExpirationDateInputs
+                                            value={getProcessedItemExpirationInputValue(item)}
+                                            onChange={(parts) => updateProcessedItem(item.id, 'expirationParts', parts)}
+                                        />
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -2529,6 +2694,7 @@
                                             <th className="p-4 font-semibold">Original Pack</th>
                                             <th className="p-4 font-semibold w-32">Total Price ($)</th>
                                             <th className="p-4 font-semibold w-56">Imported Quantity</th>
+                                            <th className="p-4 font-semibold w-80">Expiration Date</th>
                                             <th className="p-4 font-semibold">Final Cost / Unit</th>
                                             <th className="p-4 font-semibold text-center">Action</th>
                                         </tr>
@@ -2556,6 +2722,12 @@
                                                         />
                                                         <span className="text-diner-muted font-medium">{(UNITS[item.displayUnit] || UNITS[item.preferredUnit] || { label: item.displayUnit || item.preferredUnit || item.baseUnit }).label || item.displayUnit || item.preferredUnit || item.baseUnit}</span>
                                                     </div>
+                                                </td>
+                                                <td className="p-4 min-w-72">
+                                                    <ExpirationDateInputs
+                                                        value={getProcessedItemExpirationInputValue(item)}
+                                                        onChange={(parts) => updateProcessedItem(item.id, 'expirationParts', parts)}
+                                                    />
                                                 </td>
                                                 <td className="p-4 text-diner-muted font-medium">
                                                     {formatCurrency(toNumber(item.totalPrice, 0) / Math.max(toNumber(item.displayQuantity, 0), 1))} / {item.displayUnit || item.preferredUnit || item.baseUnit}
