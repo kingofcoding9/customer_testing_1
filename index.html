@@ -266,6 +266,122 @@
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
         };
 
+
+        const EXPIRATION_DAYS = Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, '0'));
+        const EXPIRATION_MONTHS = [
+            ['01', 'Jan'], ['02', 'Feb'], ['03', 'Mar'], ['04', 'Apr'], ['05', 'May'], ['06', 'Jun'],
+            ['07', 'Jul'], ['08', 'Aug'], ['09', 'Sep'], ['10', 'Oct'], ['11', 'Nov'], ['12', 'Dec']
+        ];
+        const EXPIRATION_YEARS = Array.from({ length: 21 }, (_, index) => String(new Date().getFullYear() - 1 + index));
+
+        const cleanDatePartInput = (value, maxLength) => {
+            return String(value || '').replace(/\D/g, '').slice(0, maxLength);
+        };
+
+        const getExpirationParts = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return { day: '', month: '', year: '' };
+
+            const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (isoMatch) {
+                return {
+                    day: isoMatch[3].padStart(2, '0'),
+                    month: isoMatch[2].padStart(2, '0'),
+                    year: isoMatch[1]
+                };
+            }
+
+            const parsed = new Date(raw);
+            if (!Number.isNaN(parsed.getTime())) {
+                return {
+                    day: String(parsed.getDate()).padStart(2, '0'),
+                    month: String(parsed.getMonth() + 1).padStart(2, '0'),
+                    year: String(parsed.getFullYear())
+                };
+            }
+
+            return { day: '', month: '', year: '' };
+        };
+
+        const hasAnyExpirationDatePart = (parts) => {
+            return Boolean(String(parts?.day || '').trim() || String(parts?.month || '').trim() || String(parts?.year || '').trim());
+        };
+
+        const getExpirationDateFromParts = (parts) => {
+            const day = parseInt(parts?.day, 10);
+            const month = parseInt(parts?.month, 10);
+            const year = parseInt(parts?.year, 10);
+
+            if (!day && !month && !year) return '';
+            if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return '';
+            if (year < 1900 || year > 2999 || month < 1 || month > 12 || day < 1 || day > 31) return '';
+
+            const candidate = new Date(year, month - 1, day);
+            if (candidate.getFullYear() !== year || candidate.getMonth() !== month - 1 || candidate.getDate() !== day) return '';
+
+            return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        };
+
+        function ExpirationDateInputs({ value, onChange }) {
+            const parts = value || { day: '', month: '', year: '' };
+            const updatePart = (field, rawValue, maxLength) => {
+                onChange({
+                    ...parts,
+                    [field]: cleanDatePartInput(rawValue, maxLength)
+                });
+            };
+
+            return (
+                <div className="grid grid-cols-3 gap-3">
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-diner-muted mb-1">Day</label>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            list="expiration-day-options"
+                            value={parts.day}
+                            onChange={event => updatePart('day', event.target.value, 2)}
+                            className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow"
+                            placeholder="DD"
+                        />
+                        <datalist id="expiration-day-options">
+                            {EXPIRATION_DAYS.map(day => <option key={day} value={day} />)}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-diner-muted mb-1">Month</label>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            list="expiration-month-options"
+                            value={parts.month}
+                            onChange={event => updatePart('month', event.target.value, 2)}
+                            className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow"
+                            placeholder="MM"
+                        />
+                        <datalist id="expiration-month-options">
+                            {EXPIRATION_MONTHS.map(([month, label]) => <option key={month} value={month}>{label}</option>)}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-diner-muted mb-1">Year</label>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            list="expiration-year-options"
+                            value={parts.year}
+                            onChange={event => updatePart('year', event.target.value, 4)}
+                            className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow"
+                            placeholder="YYYY"
+                        />
+                        <datalist id="expiration-year-options">
+                            {EXPIRATION_YEARS.map(year => <option key={year} value={year} />)}
+                        </datalist>
+                    </div>
+                </div>
+            );
+        }
+
         const convertToBase = (amount, unitKey) => {
             const unitInfo = UNITS[String(unitKey || '').toLowerCase()];
             const numericAmount = toNumber(amount, 0);
@@ -1138,7 +1254,7 @@
             const [inventory, setInventory] = useState([]);
             const [recipes, setRecipes] = useState([]);
             const [logs, setLogs] = useState([]);
-            const [currentView, setCurrentView] = useState('register');
+            const [currentView, setCurrentView] = useState('pantry');
             const [error, setError] = useState(null);
             const [isDarkMode, setIsDarkMode] = useState(false);
             const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -1213,7 +1329,7 @@
                 setStorageMode(mode);
                 setUnsavedChanges(false);
                 setLastStorageMessage(message);
-                setCurrentView('register');
+                setCurrentView('pantry');
                 setError(null);
             };
 
@@ -1301,7 +1417,7 @@
                             applyLoadedData(loaded, 'portable', 'Folder opened.');
                             return;
                         }
-                        throw new Error('No supported Hickory House backup, inventory.json, recipes.json, or logs.json file was found.');
+                        throw new Error('No supported Hickory House backup, inventory.json, or recipes.json file was found.');
                     }
 
                     applyLoadedData(loaded, 'portable', 'Folder opened.');
@@ -1363,7 +1479,7 @@
                 exportedAt: new Date().toISOString(),
                 inventory: (overrides.inventory || inventory).map(normalizeInventoryItem),
                 recipes: (overrides.recipes || recipes).map(normalizeRecipe),
-                logs: Array.isArray(overrides.logs || logs) ? (overrides.logs || logs) : []
+                recipes: (overrides.recipes || recipes).map(normalizeRecipe)
             });
 
             const saveJsonBlob = async (filename, payload) => {
@@ -1408,7 +1524,7 @@
                     const dateStamp = new Date().toISOString().slice(0, 10);
                     await saveJsonBlob(`hickory-house-backup-${dateStamp}.json`, buildPortableBackup());
                     setUnsavedChanges(false);
-                    setLastStorageMessage('Backup exported.');
+                    setLastStorageMessage('Backup copy downloaded.');
                     setError(null);
                 } catch (err) {
                     if (err.name !== 'AbortError') setError('Could not export backup: ' + err.message);
@@ -1419,9 +1535,8 @@
                 try {
                     await saveJsonBlob('inventory.json', inventory.map(normalizeInventoryItem));
                     await saveJsonBlob('recipes.json', recipes.map(normalizeRecipe));
-                    await saveJsonBlob('logs.json', Array.isArray(logs) ? logs : []);
                     setUnsavedChanges(false);
-                    setLastStorageMessage('JSON files exported.');
+                    setLastStorageMessage('Data files downloaded.');
                     setError(null);
                 } catch (err) {
                     if (err.name !== 'AbortError') setError('Could not export JSON files: ' + err.message);
@@ -1440,7 +1555,7 @@
                     if (type === 'recipes') setRecipes(normalizedData);
                     if (type === 'logs') setLogs(Array.isArray(normalizedData) ? normalizedData : []);
                     setUnsavedChanges(true);
-                    setLastStorageMessage('Changes saved for this session. Export a backup to keep them.');
+                    setLastStorageMessage('Changes are saved for this session. Download a backup copy to keep them.');
                     return;
                 }
 
@@ -1480,8 +1595,7 @@
                                     <Icon name="folderOpen" className="w-11 h-11" />
                                 </div>
                                 <div>
-                                    <h1 className="text-3xl font-bold text-diner-text">Folder Save</h1>
-                                    <p className="text-diner-muted text-sm mt-2">Choose the folder that stores your Hickory House files.</p>
+                                    <h1 className="text-3xl font-bold text-diner-text">Hickory House Inventory</h1>
                                 </div>
 
                                 <input
@@ -1506,7 +1620,7 @@
                                     onClick={handleChooseFolder}
                                     className="bg-stone-800 hover:bg-stone-700 text-white font-bold py-3.5 px-6 rounded-xl w-full transition-colors flex items-center justify-center shadow-sm"
                                 >
-                                    <Icon name="folderOpen" className="w-5 h-5 mr-2" /> Choose Folder
+                                    <Icon name="folderOpen" className="w-5 h-5 mr-2" /> Start: Choose Inventory Folder
                                 </button>
 
                                 <button
@@ -1514,7 +1628,7 @@
                                     onClick={() => setIsGuideOpen(true)}
                                     className="border border-diner-border text-diner-text hover:bg-stone-50 font-bold py-3 px-6 rounded-xl w-full transition-colors flex items-center justify-center"
                                 >
-                                    <Icon name="helpCircle" className="w-5 h-5 mr-2" /> Guide
+                                    <Icon name="helpCircle" className="w-5 h-5 mr-2" /> Open Simple Guide
                                 </button>
 
                                 <button
@@ -1535,11 +1649,9 @@
             }
 
             const navItems = [
-                { id: 'register', icon: 'fileText', label: 'Register' },
                 { id: 'pantry', icon: 'folderOpen', label: 'Pantry' },
-                { id: 'resupply', icon: 'clipboard', label: 'Resupply' },
-                { id: 'kitchen', icon: 'calculator', label: 'Kitchen' },
-                { id: 'ledger', icon: 'book', label: 'Ledger' }
+                { id: 'resupply', icon: 'clipboard', label: 'Add Many' },
+                { id: 'kitchen', icon: 'calculator', label: 'Kitchen' }
             ];
             const currentNavItem = navItems.find(item => item.id === currentView) || navItems[0];
 
@@ -1572,19 +1684,19 @@
                                 onClick={downloadBackup}
                                 className="w-full bg-diner-primary hover:bg-diner-hover text-white rounded-lg py-2 px-3 font-bold transition-colors"
                             >
-                                {unsavedChanges ? 'Export Backup *' : 'Export Backup'}
+                                {unsavedChanges ? 'Save Backup Copy *' : 'Save Backup Copy'}
                             </button>
                             <button
                                 type="button"
                                 onClick={downloadSeparateJsonFiles}
                                 className="w-full border border-diner-border text-diner-text hover:bg-white rounded-lg py-2 px-3 font-bold transition-colors"
                             >
-                                Export 3 JSON Files
+                                Download Data Files
                             </button>
-                            <div>Portable mode. Export after changes.</div>
+                            <div>Download a backup after changes.</div>
                         </div>
                     ) : (
-                        <div>Folder mode. Data saves directly.</div>
+                        <div>Every change saves to your folder.</div>
                     )}
                     {lastStorageMessage && <div className={unsavedChanges ? 'text-diner-primary font-bold' : ''}>{lastStorageMessage}</div>}
                 </div>
@@ -1681,17 +1793,9 @@
                         )}
                         {storageMode === 'portable' && unsavedChanges && (
                             <div className="mb-4 bg-orange-50 border border-orange-200 text-diner-primary rounded-xl p-3 text-sm font-bold flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                                <span>Unsaved file changes. Export a backup before closing or switching apps.</span>
-                                <button type="button" onClick={downloadBackup} className="bg-diner-primary text-white rounded-lg py-2 px-4 font-bold">Export Backup</button>
+                                <span>Unsaved changes. Download a backup copy before closing or switching apps.</span>
+                                <button type="button" onClick={downloadBackup} className="bg-diner-primary text-white rounded-lg py-2 px-4 font-bold">Save Backup Copy</button>
                             </div>
-                        )}
-                        {currentView === 'register' && (
-                            <Register 
-                                inventory={inventory} 
-                                recipes={recipes} 
-                                totalValue={totalInventoryValue}
-                                onNavigate={handleNavigate}
-                            />
                         )}
                         {currentView === 'pantry' && (
                             <Pantry 
@@ -1710,21 +1814,12 @@
                             <Kitchen 
                                 inventory={inventory}
                                 recipes={recipes}
-                                logs={logs}
                                 saveRecipes={(data) => saveData('recipes', data)}
-                                saveInventory={(data) => saveData('inventory', data)}
-                                saveLogs={(data) => saveData('logs', data)}
-                            />
-                        )}
-                        {currentView === 'ledger' && (
-                            <Ledger 
-                                logs={logs}
-                                saveLogs={(data) => saveData('logs', data)}
                             />
                         )}
                     </main>
 
-                    <nav className="mobile-bottom-nav md:hidden fixed left-0 right-0 bottom-0 z-30 bg-diner-surface border-t border-diner-border shadow-2xl px-2 pt-2 grid grid-cols-5 gap-1">
+                    <nav className="mobile-bottom-nav md:hidden fixed left-0 right-0 bottom-0 z-30 bg-diner-surface border-t border-diner-border shadow-2xl px-2 pt-2 grid grid-cols-3 gap-1">
                         {navItems.map(item => (
                             <button
                                 type="button"
@@ -1755,340 +1850,113 @@
 
         const GUIDE_SECTIONS = [
             {
-                        "id": "getting-started",
-                        "title": "1. Getting started",
-                        "keywords": "start open choose folder first time permission save folder dark mode light mode",
-                        "summary": "Open Hickory House Inventory, choose where your files are kept, and understand the first screen.",
-                        "items": [
-                                    "When Hickory House Inventory opens for the first time, press Choose Folder. Choose the folder where the inventory files should be kept.",
-                                    "If your device asks for permission, choose Allow. Hickory House Inventory needs permission so it can read and save your inventory information in that folder.",
-                                    "Use a folder that is easy to find later, such as Documents > Hickory House Inventory, Desktop > Hickory House Inventory, or a business inventory folder.",
-                                    "After the folder is chosen, Hickory House Inventory opens the main inventory screen.",
-                                    "Use Light Mode or Dark Mode to change the screen colors. This only changes how Hickory House Inventory looks. It does not change your inventory information."
-                        ],
-                        "tips": [
-                                    "A good folder name is Hickory House Inventory. Keep it somewhere staff can find it again.",
-                                    "Do not move or delete the saved files unless you already exported a backup."
-                        ]
+                id: "getting-started",
+                title: "1. Start here",
+                keywords: "start open choose folder first time permission save folder simple beginner",
+                summary: "Open the tool, choose the folder, then use the three main buttons.",
+                items: [
+                    "Press Start: Choose Inventory Folder when Hickory House Inventory opens.",
+                    "Choose the folder where the inventory files should be kept. A simple folder name is Hickory House Inventory.",
+                    "If your device asks for permission, choose Allow so the tool can save your changes.",
+                    "After the folder opens, you will land on Pantry. Pantry is the main screen for checking and editing inventory.",
+                    "The three main areas are Pantry, Add Many, and Dishes. Most staff will only need those three buttons."
+                ],
+                tips: [
+                    "Use Pantry when you only need to add, edit, search, or delete one item.",
+                    "Use Add Many when you have a spreadsheet, invoice, or copied table.",
+                    "Use Kitchen when you want to create saved dishes and calculate food cost."
+                ]
             },
             {
-                        "id": "json-files",
-                        "title": "2. What JSON files are",
-                        "keywords": "json file inventory recipes logs create backup database export portable folder mode",
-                        "summary": "Understand the files Hickory House Inventory saves, without needing any technical knowledge.",
-                        "items": [
-                                    "A JSON file is just a saved information file. Think of it like a notebook that Hickory House Inventory can read and write.",
-                                    "inventory.json stores pantry items, quantities, prices, units, and expiration information.",
-                                    "recipes.json stores Kitchen dishes, ingredients, tags, and dish costs.",
-                                    "logs.json stores the Ledger history of cooked dishes.",
-                                    "You normally do not need to open or edit JSON files yourself. Hickory House Inventory creates and updates them for you.",
-                                    "In Folder Mode, Hickory House Inventory can create inventory.json, recipes.json, and logs.json when it saves your information to the folder you chose.",
-                                    "In Portable Mode, press Export Backup to create one backup JSON file that contains pantry items, dishes, and ledger history.",
-                                    "If someone asks you to create a JSON file manually, the safe beginner answer is: open Hickory House Inventory, enter or import the information, then use Export Backup or Export 3 JSON Files."
-                        ],
-                        "tips": [
-                                    "Do not rename inventory.json, recipes.json, or logs.json unless you know exactly why. Hickory House Inventory looks for those names.",
-                                    "Do not double-click a JSON file expecting it to look like a spreadsheet. It may open as plain text, and that is normal.",
-                                    "The backup file is still a JSON file, but it is meant to be imported back into Hickory House Inventory, not edited by hand."
-                        ]
+                id: "pantry",
+                title: "2. Pantry",
+                keywords: "pantry inventory item list add edit delete search expiration checked selected amount price unit",
+                summary: "Pantry is the main inventory list.",
+                items: [
+                    "Use the search box to find an item by name.",
+                    "Press Add One Item to enter a single purchase manually.",
+                    "Press the pencil button beside an item to change it.",
+                    "Press the trash button beside an item to delete it.",
+                    "Show Soon-to-Expire Items shows only items that are expired or close to expiring.",
+                    "Checked items are selected. Delete Checked removes every checked item, so use it carefully."
+                ],
+                examples: [
+                    "If you bought a 10 lb box of onions for $12.00, press Add One Item, type Onion, enter 12 for price, 10 for quantity, and Pounds for unit.",
+                    "If you bought 24 sauce cups for $6.00, enter quantity 24 and unit Each."
+                ],
+                tips: [
+                    "Search before adding a new item. This helps prevent duplicates.",
+                    "Use simple names like Brisket, Onion, Flour, BBQ Sauce, or Sauce Cup."
+                ]
             },
             {
-                        "id": "navigation",
-                        "title": "3. Moving around Hickory House Inventory",
-                        "keywords": "navigation menu register pantry resupply kitchen ledger mobile computer guide sidebar bottom buttons",
-                        "summary": "Know what each main area is for and how to reach it.",
-                        "items": [
-                                    "On a computer, use the left menu to move between sections.",
-                                    "On a phone or tablet, use the buttons at the bottom. Press the menu button in the top-left area when you need the full menu.",
-                                    "Register is the dashboard. It gives a quick overview of pantry value, item count, saved dishes, and recent additions.",
-                                    "Pantry is the full inventory list. Use it to add, edit, search, and delete inventory items.",
-                                    "Resupply is for adding many items at once from a pasted table, spreadsheet, invoice, or supported file.",
-                                    "Kitchen is for building dishes, calculating dish costs, and cooking dishes so ingredients are deducted from the pantry.",
-                                    "Ledger is the history of cooked dishes and ingredient deductions.",
-                                    "Press the Guide button at any time to open these instructions again."
-                        ],
-                        "tips": [
-                                    "If you feel lost, go back to Register. It is the easiest place to restart from.",
-                                    "The section name at the top tells you where you are."
-                        ]
+                id: "add-many",
+                title: "3. Add Many",
+                keywords: "add many resupply import paste spreadsheet invoice csv xlsx file columns save pantry",
+                summary: "Add Many is for adding several inventory items at once.",
+                items: [
+                    "Paste a copied table into the text box, then press Next: Check Pasted Items.",
+                    "Or press Choose File and select a spreadsheet, invoice export, CSV, TSV, JSON, HTML, XML, or similar table file.",
+                    "On the check columns screen, tell Hickory House Inventory which column is Item Name, Pack Size, and Total Price.",
+                    "Columns that are not needed can stay as Ignore Column.",
+                    "Review the detected items before pressing Save Pantry Items to Pantry."
+                ],
+                tips: [
+                    "If an invoice import looks messy, copy only the item table and paste it instead of uploading the whole file.",
+                    "Only three columns are required: item name, pack size or quantity, and total price."
+                ]
             },
             {
-                        "id": "register",
-                        "title": "4. Register dashboard",
-                        "keywords": "register dashboard total pantry value unique items saved dishes recent additions manage pantry resupply",
-                        "summary": "Use the Register as the simple overview screen.",
-                        "items": [
-                                    "Total Pantry Value shows the current dollar value of all pantry inventory saved in Hickory House Inventory.",
-                                    "Unique Items shows how many different pantry item names are saved. For example, brisket and flour count as two unique items.",
-                                    "Saved Dishes shows how many Kitchen dishes or recipes are saved.",
-                                    "Recent Additions shows the newest pantry items that were added.",
-                                    "Press Manage Pantry to edit the full pantry list.",
-                                    "Press Go to Resupply when you want to add many items from a file, spreadsheet, invoice, or copied table."
-                        ],
-                        "tips": [
-                                    "Use Register at the start of a shift when you only need a quick overview.",
-                                    "If the totals look wrong, check Pantry first because Register gets its numbers from Pantry."
-                        ]
+                id: "dishes",
+                title: "4. Dishes",
+                keywords: "dishes kitchen recipe cost ingredients pantry tags search",
+                summary: "Kitchen helps calculate and save dish costs from Pantry prices.",
+                items: [
+                    "Press Create Dish to make a saved dish or recipe.",
+                    "Choose pantry items as ingredients, then enter how much the dish uses.",
+                    "The tool calculates the dish cost from the current Pantry prices.",
+                    "Saving or editing a dish never changes Pantry amounts.",
+                    "A dish can still be saved even when Pantry does not have enough of an ingredient."
+                ],
+                tips: [
+                    "Add Pantry items first. Dishes can only use items that already exist in Pantry.",
+                    "If a dish cost looks wrong, check the Pantry price and unit first."
+                ]
             },
             {
-                        "id": "pantry",
-                        "title": "5. Pantry item list",
-                        "keywords": "pantry inventory item list add edit delete search expiration selected checkbox amount cost per base unit",
-                        "summary": "Add, find, update, and remove inventory items.",
-                        "items": [
-                                    "Pantry is the main inventory list. This is where the saved food and supply items live.",
-                                    "Use the search box to find an item by name.",
-                                    "Press Add Item to add one item manually.",
-                                    "Use the pencil button on an item to edit it.",
-                                    "Use the trash button on an item to delete it.",
-                                    "Use Show Expiring Items to only show items that are expired or close to expiring.",
-                                    "Use checkboxes when you need to select several items. Select All Visible selects the items currently shown after search or filtering.",
-                                    "Delete Selected removes the checked items. Use it carefully because it removes more than one item at once.",
-                                    "Available Amount shows how much is currently left.",
-                                    "Cost Per Base Unit is the small-unit price Hickory House Inventory uses for recipe math. You do not need to calculate it yourself."
-                        ],
-                        "tips": [
-                                    "Search before adding a new item. That helps avoid saving the same item twice with slightly different names.",
-                                    "Use clear names like Brisket, Onion, Flour, or BBQ Sauce. Clear names make Kitchen recipes easier."
-                        ]
+                id: "backup",
+                title: "5. Backups and saved files",
+                keywords: "backup save folder json inventory recipes download separate files portable mode folder mode",
+                summary: "Know what the saved files are and how to protect your work.",
+                items: [
+                    "In normal folder mode, changes save directly to the folder you chose.",
+                    "inventory.json stores Pantry items, quantities, prices, units, and expiration notes.",
+                    "recipes.json stores saved dishes and ingredient lists.",
+                    "logs.json stores cooking history created when Cook Dish is used.",
+                    "Save Backup Copy downloads one backup file that contains Pantry, Dishes, and cooking history.",
+                    "Download Data Files downloads inventory.json, recipes.json, and logs.json separately."
+                ],
+                tips: [
+                    "Do not rename inventory.json or recipes.json unless you know exactly why.",
+                    "Download a backup before making large changes or deleting many items."
+                ]
             },
             {
-                        "id": "manual-item",
-                        "title": "6. Adding one item manually",
-                        "keywords": "manual add item name price quantity unit expiration date note save item pounds ounces gallons each cups",
-                        "summary": "Add a single purchase by typing its name, price, amount, and unit.",
-                        "items": [
-                                    "Go to Pantry, then press Add Item.",
-                                    "Item Name is the plain name of the item, such as Brisket, Onion, Flour, Sauce Cup, or BBQ Sauce.",
-                                    "Total Price is what was paid for the whole pack, box, case, bottle, bag, or item.",
-                                    "Quantity is how much was bought.",
-                                    "Unit is the measurement type, such as pounds, ounces, gallons, quarts, cups, each, or dozen.",
-                                    "Expiration Date / Note can be a calendar date, a written date, or a short note such as use first, freezer, opened today, or check label.",
-                                    "Press Save Item when the information is correct.",
-                                    "After saving, Hickory House Inventory calculates the small-unit cost automatically."
-                        ],
-                        "examples": [
-                                    "Example: If you bought a 10 lb box of onions for $12.00, enter Item Name as Onion, Total Price as 12, Quantity as 10, and Unit as pounds.",
-                                    "Example: If you bought 24 sauce cups for $6.00, enter Quantity as 24 and Unit as each."
-                        ],
-                        "tips": [
-                                    "Do not include the dollar sign in Total Price if the field only needs a number. Type 12.50 instead of $12.50.",
-                                    "If you are unsure of the expiration date, enter a helpful note instead of leaving staff confused."
-                        ]
-            },
-            {
-                        "id": "resupply",
-                        "title": "7. Resupply: importing many items",
-                        "keywords": "resupply import paste spreadsheet invoice csv xlsx json analyze pasted data browse files map columns save to pantry",
-                        "summary": "Bring in several inventory items at once from copied text or files.",
-                        "items": [
-                                    "Use Resupply when you have many items to add at one time.",
-                                    "You can paste a table from another program into the large text box, then press Analyze Pasted Data.",
-                                    "You can also press Browse Files and choose a supported file from your device.",
-                                    "Supported files can include common spreadsheet, text table, JSON, HTML, XML, CSV, TSV, Excel, and similar exports.",
-                                    "After import, Hickory House Inventory shows a preview before saving anything to Pantry.",
-                                    "The preview step is important. It lets you confirm that the right information went into the right place.",
-                                    "Nothing should be considered final until you press Save to Pantry."
-                        ],
-                        "tips": [
-                                    "If an invoice import looks messy, try copying only the item table and pasting it into Resupply instead of importing the whole file.",
-                                    "Always review prices and quantities before saving. Imports can only be as accurate as the file they came from."
-                        ]
-            },
-            {
-                        "id": "mapping-columns",
-                        "title": "8. Mapping columns during Resupply",
-                        "keywords": "map columns column mapping item name pack size total price ignore column hide ignored show ignored continue review",
-                        "summary": "Tell Hickory House Inventory which imported column means what.",
-                        "items": [
-                                    "Mapping columns means matching each imported column to the correct meaning.",
-                                    "Choose Item Name for the column that contains the product or ingredient name.",
-                                    "Choose Pack Size for the column that says how much came in the package, such as 10 lb, 1 gal, 24 ea, or 6/1.5 LB.",
-                                    "Choose Total Price for the column that contains the price for that line item.",
-                                    "Choose Ignore Column for information Hickory House Inventory does not need, such as item code, vendor name, category, invoice number, or notes.",
-                                    "Hide Ignored Columns makes the preview easier to read by hiding columns you chose to ignore.",
-                                    "Show Ignored Columns brings those hidden columns back if you need to check them again.",
-                                    "Press Continue after Item Name, Pack Size, and Total Price are mapped correctly."
-                        ],
-                        "tips": [
-                                    "If the item names look like prices or the prices look like item names, the columns are mapped wrong. Go back and fix the mapping.",
-                                    "Use the sample rows shown on-screen to decide what each column contains."
-                        ]
-            },
-            {
-                        "id": "review-import",
-                        "title": "9. Reviewing imported items",
-                        "keywords": "review converted items imported rows fix price quantity delete row conflict duplicate same name save to pantry",
-                        "summary": "Check imported items before they are added to Pantry.",
-                        "items": [
-                                    "The review step shows how Hickory House Inventory understood each imported item.",
-                                    "Check the item name, quantity, unit, and price for each row.",
-                                    "If a row is wrong, fix it before saving.",
-                                    "If a row should not be imported, delete that row from the review list.",
-                                    "If Hickory House Inventory warns about a duplicate name with a different price, review it carefully. The same item name should usually use the same purchase price when merging.",
-                                    "Press Save to Pantry only after the list looks correct.",
-                                    "When saved, matching items can be merged into existing Pantry quantities when the name, price, and unit information are compatible."
-                        ],
-                        "tips": [
-                                    "Never rush the review step. This is where most import mistakes can be caught before they affect Pantry.",
-                                    "If several rows are wrong in the same way, the column mapping may need to be changed."
-                        ]
-            },
-            {
-                        "id": "units",
-                        "title": "10. Understanding pack sizes and units",
-                        "keywords": "pack size unit pounds ounces grams gallons milliliters each dozen weight volume count conversion base unit cost",
-                        "summary": "Understand measurements without needing to do the math yourself.",
-                        "items": [
-                                    "A pack size describes how much was purchased. Examples include 10 lb, 12 oz, 1 gal, 24 ea, 1 dzn, or 6/1.5 LB.",
-                                    "Weight items are things measured by pounds, ounces, grams, or kilograms.",
-                                    "Volume items are liquids or measured amounts like gallons, quarts, pints, cups, fluid ounces, tablespoons, teaspoons, milliliters, or liters.",
-                                    "Count items are things counted one by one, such as each or dozen.",
-                                    "Hickory House Inventory stores weight as grams in the background, volume as milliliters in the background, and count items as each in the background.",
-                                    "You do not need to use grams or milliliters yourself. Hickory House Inventory uses them so ingredient costs can be calculated consistently.",
-                                    "If an imported pack size looks wrong, correct it before saving the item to Pantry."
-                        ],
-                        "examples": [
-                                    "6/1.5 LB usually means six packages at 1.5 pounds each, for a total of 9 pounds.",
-                                    "24 ea means twenty-four individual pieces.",
-                                    "1 gal means one gallon."
-                        ],
-                        "tips": [
-                                    "Use the same unit type for the same item whenever possible. For example, keep brisket as weight, not sometimes weight and sometimes count.",
-                                    "If a recipe uses cups for an item bought by pounds, Hickory House Inventory may estimate the conversion because every ingredient has a different real density."
-                        ]
-            },
-            {
-                        "id": "kitchen",
-                        "title": "11. Kitchen: creating dishes and calculating cost",
-                        "keywords": "kitchen dish recipe ingredients cost create new dish tags ingredient amount unit save update",
-                        "summary": "Create dishes and let Hickory House Inventory calculate ingredient cost.",
-                        "items": [
-                                    "Use Kitchen to create dishes, attach pantry ingredients, and calculate how much each dish costs to make.",
-                                    "Press Create New Dish to start a new dish.",
-                                    "Dish Name is the name staff will recognize, such as Pulled Pork Sandwich, Brisket Plate, Fries, or Banana Pudding.",
-                                    "Tags are optional labels such as breakfast, smoked, catering, special, side, dessert, seasonal, or lunch.",
-                                    "To add an ingredient, choose a Pantry item, type how much the dish uses, choose the unit, then press Add.",
-                                    "The ingredient list shows the amount used and the calculated cost.",
-                                    "Press Save Dish to keep a new dish. Press Update Dish when editing an existing dish."
-                        ],
-                        "tips": [
-                                    "Create Pantry items before creating dishes. Kitchen can only calculate costs from saved Pantry items.",
-                                    "Use tags to make large dish lists easier to search later."
-                        ]
-            },
-            {
-                        "id": "saved-dishes",
-                        "title": "12. Managing saved dishes",
-                        "keywords": "saved dishes search tags all tags checkbox collapse expand edit delete cook dish selected",
-                        "summary": "Find, edit, organize, delete, and cook saved dishes.",
-                        "items": [
-                                    "Use the Kitchen search box to find dishes by dish name, tag, or ingredient.",
-                                    "Use the All Tags dropdown or tag buttons to show only dishes with a certain tag.",
-                                    "Use checkboxes to select dishes. Select All Visible selects the dishes currently shown after search or tag filtering.",
-                                    "Delete Selected removes the selected dishes.",
-                                    "Collapse Visible hides ingredient details so the dish list is easier to scan.",
-                                    "Expand Visible shows ingredient details again.",
-                                    "Use the pencil button to edit a dish.",
-                                    "Use the trash button to delete a dish.",
-                                    "Press Cook Dish when that dish is actually made and ingredients should be removed from Pantry."
-                        ],
-                        "tips": [
-                                    "Deleting a dish does not automatically change Pantry. Cooking a dish is what subtracts ingredients from Pantry.",
-                                    "If staff only need to make food, they should usually press Cook Dish, not edit the recipe."
-                        ]
-            },
-            {
-                        "id": "cook-dish",
-                        "title": "13. Cooking a dish and updating Pantry",
-                        "keywords": "cook dish confirm subtract ingredients not enough missing pantry value available amount ledger",
-                        "summary": "Use Cook Dish to subtract ingredients and record the cooking event.",
-                        "items": [
-                                    "When you press Cook Dish, Hickory House Inventory asks for confirmation first.",
-                                    "If there is not enough of an ingredient, Hickory House Inventory tells you what is missing and does not change Pantry.",
-                                    "If everything is available, Hickory House Inventory subtracts the ingredient amounts from Pantry.",
-                                    "After cooking, Pantry amounts and Pantry value update automatically.",
-                                    "The cooked dish is also recorded in Ledger with the date, cost, and ingredients used."
-                        ],
-                        "tips": [
-                                    "Only press Cook Dish when the dish was actually made or when you intentionally want to deduct those ingredients.",
-                                    "If the wrong dish was cooked by mistake, you may need to manually correct Pantry because Clear Ledger does not restore ingredients."
-                        ]
-            },
-            {
-                        "id": "ledger",
-                        "title": "14. Ledger history",
-                        "keywords": "ledger history cooked dishes expenses tracked cost clear ledger date ingredients deducted",
-                        "summary": "Review the history of cooked dishes and ingredient deductions.",
-                        "items": [
-                                    "Ledger is the history of dishes cooked through Kitchen.",
-                                    "Total Expenses Tracked shows the total ingredient cost of all cooked dishes recorded in Ledger.",
-                                    "Dishes Cooked shows how many cooking records are saved.",
-                                    "Each ledger card shows the dish name, date, cost, and ingredients deducted from Pantry.",
-                                    "Use Clear Ledger only when you intentionally want to erase the cooking history.",
-                                    "Clear Ledger does not put ingredients back into Pantry. It only clears the history list."
-                        ],
-                        "tips": [
-                                    "Use Ledger for cost review, production review, and checking what was cooked recently.",
-                                    "Export a backup before clearing Ledger if the history may be needed later."
-                        ]
-            },
-            {
-                        "id": "saving-backups",
-                        "title": "15. Saving, backups, and safe use",
-                        "keywords": "saving backup export backup export 3 json files folder mode portable mode unsaved changes database safe use",
-                        "summary": "Protect the inventory information from being lost.",
-                        "items": [
-                                    "Folder Mode saves directly to the folder you chose. Hickory House Inventory writes inventory.json, recipes.json, and logs.json for you.",
-                                    "Portable Mode saves changes for the current session, but you must export a backup to keep those changes after closing.",
-                                    "If you see an unsaved changes message or an asterisk on Export Backup, press Export Backup before closing Hickory House Inventory.",
-                                    "Export Backup downloads one backup file that contains Pantry, Kitchen dishes, and Ledger history.",
-                                    "Export 3 JSON Files downloads inventory.json, recipes.json, and logs.json separately.",
-                                    "Keep backup files somewhere safe, such as a business folder, external drive, or approved cloud storage.",
-                                    "Do not delete the saved JSON files unless a newer backup is already saved somewhere safe."
-                        ],
-                        "tips": [
-                                    "A simple safe habit is to export a backup at the end of each day.",
-                                    "When training staff, tell them: if Hickory House Inventory says to export, export before closing."
-                        ]
-            },
-            {
-                        "id": "daily-workflow",
-                        "title": "16. Simple daily workflow",
-                        "keywords": "daily workflow open choose folder add purchases check pantry create update dishes cook ledger backup",
-                        "summary": "A basic step-by-step routine for regular use.",
-                        "steps": [
-                                    "Open Hickory House Inventory and choose the correct folder.",
-                                    "Go to Pantry or Resupply to add new purchases.",
-                                    "Check Pantry for low, expired, or soon-to-expire items.",
-                                    "Go to Kitchen to create or update dishes.",
-                                    "Press Cook Dish when food is made so ingredients are deducted from Pantry.",
-                                    "Review Ledger when you need cooking or cost history.",
-                                    "Export a backup if Hickory House Inventory says the current mode needs one."
-                        ],
-                        "tips": [
-                                    "For most daily use, staff will mainly use Pantry, Kitchen, and Ledger.",
-                                    "For receiving inventory from invoices or spreadsheets, staff will mainly use Resupply."
-                        ]
-            },
-            {
-                        "id": "troubleshooting",
-                        "title": "17. Common problems and simple fixes",
-                        "keywords": "troubleshooting problem fix cannot find folder import wrong json file missing save not working browser permission",
-                        "summary": "Quick fixes for common beginner mistakes.",
-                        "items": [
-                                    "If Hickory House Inventory opens empty, make sure you chose the correct folder or imported the correct backup file.",
-                                    "If a file import looks wrong, go back to Resupply and check the column mapping.",
-                                    "If an item amount looks wrong, edit the item in Pantry and correct the quantity or unit.",
-                                    "If a dish cost looks wrong, check the Pantry item price and unit first, then check the dish ingredient amount in Kitchen.",
-                                    "If saving does not work in Folder Mode, the browser or device may not have permission. Choose the folder again and allow permission when asked.",
-                                    "If using Portable Mode, remember that changes must be exported before closing.",
-                                    "If a JSON file opens as plain text, that is normal. Do not edit the text unless you know exactly what you are changing."
-                        ],
-                        "tips": [
-                                    "Most mistakes can be fixed by checking the source section: Pantry for items, Resupply for imports, Kitchen for recipes, and Ledger for history.",
-                                    "When unsure, export a backup before making large changes."
-                        ]
+                id: "quick-workflow",
+                title: "6. Simple daily workflow",
+                keywords: "daily workflow staff open pantry add many dishes kitchen backup simple",
+                summary: "A simple order of steps for daily use.",
+                steps: [
+                    "Open Hickory House Inventory and choose the inventory folder.",
+                    "Go to Pantry to check what is already saved.",
+                    "Use Add One Item for one purchase, or Add Many for a spreadsheet or invoice.",
+                    "Use Kitchen to create and update saved dishes when needed.",
+                    "Download a backup copy before large changes, after a big import, or at the end of the day."
+                ],
+                tips: [
+                    "When something looks wrong, start by checking Pantry because Pantry is where prices and amounts come from.",
+                    "When unsure, make a backup before deleting or changing many items."
+                ]
             }
 ];
 
@@ -2247,7 +2115,7 @@
                                         type="text"
                                         value={guideSearch}
                                         onChange={(event) => setGuideSearch(event.target.value)}
-                                        placeholder="Search words like JSON, backup, import, Pantry, Cook Dish, or expiration..."
+                                        placeholder="Search words like backup, add item, spreadsheet, dish, price, unit, or expiration..."
                                         className="w-full pl-10 pr-4 py-3 rounded-xl border border-diner-border bg-white text-diner-text focus:outline-none focus:ring-2 focus:ring-diner-primary/30"
                                     />
                                 </div>
@@ -2300,7 +2168,7 @@
                                                 <Icon name="search" className="w-6 h-6" />
                                             </div>
                                             <h3 className="text-lg font-bold text-diner-text">No guide sections found</h3>
-                                            <p className="text-sm text-diner-muted mt-2">Try a simpler word like Pantry, backup, import, JSON, dish, price, unit, or Ledger.</p>
+                                            <p className="text-sm text-diner-muted mt-2">Try a simpler word like Pantry, backup, import, dish, price, unit, or expiration.</p>
                                         </div>
                                     ) : (
                                         matchingSections.map(section => (
@@ -2334,61 +2202,6 @@
         // ==========================================
         // VIEWS
         // ==========================================
-
-        function Register({ inventory, recipes, totalValue, onNavigate }) {
-            return (
-                <div className="space-y-8 max-w-5xl mx-auto animation-fadeIn">
-                    <h2 className="text-3xl font-bold text-diner-text">Register</h2>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-diner-surface border border-diner-border p-6 rounded-2xl shadow-sm">
-                            <h3 className="text-diner-muted font-medium mb-1">Total Pantry Value</h3>
-                            <p className="text-4xl font-bold text-diner-accent">{formatCurrency(totalValue)}</p>
-                        </div>
-                        <div className="bg-diner-surface border border-diner-border p-6 rounded-2xl shadow-sm">
-                            <h3 className="text-diner-muted font-medium mb-1">Unique Items</h3>
-                            <p className="text-4xl font-bold text-diner-text">{inventory.length}</p>
-                        </div>
-                        <div className="bg-diner-surface border border-diner-border p-6 rounded-2xl shadow-sm">
-                            <h3 className="text-diner-muted font-medium mb-1">Saved Dishes</h3>
-                            <p className="text-4xl font-bold text-diner-text">{recipes.length}</p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-diner-surface border border-diner-border rounded-2xl p-6 shadow-sm">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-xl font-bold">Recent Additions</h3>
-                                <button onClick={() => onNavigate('pantry')} className="text-sm font-medium text-diner-primary hover:underline">Manage Pantry</button>
-                            </div>
-                            {inventory.length === 0 ? (
-                                <p className="text-diner-muted italic">No pantry items yet.</p>
-                            ) : (
-                                <div className="space-y-3">
-                                    {inventory.slice(-5).reverse().map((item, idx) => (
-                                        <div key={idx} className="flex justify-between items-center p-3 bg-stone-50 rounded-lg border border-diner-border">
-                                            <span className="font-medium text-diner-text">{item.name}</span>
-                                            <span className="text-diner-muted text-sm font-medium">{formatCurrency(item.totalPrice)}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        <div className="bg-diner-surface border border-diner-border rounded-2xl p-6 flex flex-col justify-center items-center text-center shadow-sm">
-                            <Icon name="clipboard" className="w-12 h-12 text-stone-300 mb-4" />
-                            <h3 className="text-xl font-bold mb-2">Resupply Inventory</h3>
-                            <p className="text-diner-muted mb-6 max-w-xs text-sm">Copy and paste tables directly from Excel, Word, or upload CSV files to bulk add items.</p>
-                            <button 
-                                onClick={() => onNavigate('resupply')}
-                                className="bg-stone-800 text-white hover:bg-stone-700 font-bold py-2.5 px-6 rounded-lg transition-colors shadow-sm"
-                            >
-                                Go to Resupply
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
 
         function Resupply({ inventory, saveInventory, onFinish }) {
             const [step, setStep] = useState(1);
@@ -2495,7 +2308,7 @@
                 const priceCol = Object.keys(columnMap).find(key => columnMap[key] === 'price');
 
                 if (nameCol === undefined || sizeCol === undefined || priceCol === undefined) {
-                    alert("Please map the 'Item Name', 'Pack Size', and 'Total Price' columns to proceed.");
+                    alert("Please choose the Item Name, Pack Size or Quantity, and Total Price columns before continuing.");
                     return;
                 }
 
@@ -2592,20 +2405,18 @@
 
             return (
                 <div className="max-w-5xl mx-auto space-y-6 animation-fadeIn">
-                    <h2 className="text-3xl font-bold">Resupply</h2>
-                    <p className="text-diner-muted">Import inventory lists by pasting a table or uploading spreadsheet, delimited text, JSON, HTML/XML table, or other supported table files. Review the detected columns before saving.</p>
+                    <h2 className="text-3xl font-bold">Add Many Items</h2>
                     {importStatus && <p className="text-sm font-bold text-diner-primary">{importStatus}</p>}
 
                     {step === 1 && (
                         <div className="bg-diner-surface border border-diner-border rounded-2xl shadow-sm overflow-hidden flex flex-col md:flex-row">
                             <div className="p-8 flex-1 border-b md:border-b-0 md:border-r border-diner-border flex flex-col justify-center items-center text-center">
                                 <Icon name="clipboard" className="w-12 h-12 text-stone-300 mb-4" />
-                                <h3 className="text-xl font-bold mb-2">Option 1: Paste from Excel/Word</h3>
-                                <p className="text-sm text-diner-muted mb-6">Select your data table in Excel, copy it, and paste it directly into the text box.</p>
+                                <h3 className="text-xl font-bold mb-2">Paste a Copied Table</h3>
                                 <textarea 
                                     value={rawText}
                                     onChange={(e) => setRawText(e.target.value)}
-                                    placeholder="Paste table data here..."
+                                    placeholder="Paste item names, pack sizes, and prices here..."
                                     className="w-full h-48 bg-diner-bg border border-diner-border rounded-xl p-4 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary font-mono text-sm resize-none"
                                 />
                                 <button 
@@ -2613,14 +2424,13 @@
                                     disabled={!rawText.trim()}
                                     className="mt-4 bg-diner-primary disabled:opacity-50 hover:bg-diner-hover text-white font-bold py-2.5 px-6 rounded-lg transition-colors w-full shadow-sm"
                                 >
-                                    Analyze Pasted Data
+                                    Next: Check Pasted Items
                                 </button>
                             </div>
                             <div className="p-8 flex-1 flex flex-col justify-center items-center text-center bg-stone-50">
                                 <div className="text-stone-400 mb-4 font-bold text-lg">OR</div>
                                 <Icon name="upload" className="w-12 h-12 text-stone-300 mb-4" />
-                                <h3 className="text-xl font-bold mb-2">Option 2: Upload File</h3>
-                                <p className="text-sm text-diner-muted mb-6">Upload XLSX, XLS, ODS, CSV, TSV, pipe/semicolon text, JSON, HTML/XML tables, or similar inventory exports.</p>
+                                <h3 className="text-xl font-bold mb-2">Choose a File</h3>
                                 <input 
                                     type="file" 
                                     ref={fileInputRef} 
@@ -2633,7 +2443,7 @@
                                     onClick={() => fileInputRef.current.click()}
                                     className="bg-stone-800 hover:bg-stone-700 text-white font-bold py-3 px-6 rounded-lg transition-colors w-full shadow-sm"
                                 >
-                                    Browse Files
+                                    Choose File
                                 </button>
                             </div>
                         </div>
@@ -2643,8 +2453,7 @@
                         <div className="bg-diner-surface border border-diner-border rounded-2xl shadow-sm overflow-hidden animation-fadeIn">
                             <div className="p-6 border-b border-diner-border flex flex-col md:flex-row md:justify-between md:items-center gap-4 bg-stone-50">
                                 <div>
-                                    <h3 className="text-xl font-bold">Map Columns</h3>
-                                    <p className="text-sm text-diner-muted">Confirm what data is in each column. Auto-detection is applied first. (Showing first 5 rows)</p>
+                                    <h3 className="text-xl font-bold">Check Columns</h3>
                                 </div>
                                 <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
                                     <button
@@ -2653,13 +2462,13 @@
                                         className={`${hideIgnoredColumns ? 'bg-diner-primary text-white hover:bg-diner-hover' : 'bg-white text-diner-text hover:bg-stone-50 border border-diner-border'} font-bold py-2.5 px-4 rounded-lg transition-colors shadow-sm`}
                                         title="Hide or show columns currently marked Ignore Column. This preference is remembered on this device."
                                     >
-                                        {hideIgnoredColumns ? 'Show Ignored Columns' : 'Hide Ignored Columns'}
+                                        {hideIgnoredColumns ? 'Show Unneeded Columns' : 'Hide Unneeded Columns'}
                                     </button>
                                     <button 
                                         onClick={processMappedData}
                                         className="bg-stone-800 hover:bg-stone-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors flex items-center justify-center shadow-sm"
                                     >
-                                        Continue <Icon name="arrowRight" className="w-4 h-4 ml-2" />
+                                        Next <Icon name="arrowRight" className="w-4 h-4 ml-2" />
                                     </button>
                                 </div>
                             </div>
@@ -2675,9 +2484,9 @@
                                                         title="Choose what this imported column represents"
                                                         className="resupply-map-select bg-white border border-stone-300 rounded p-2 text-stone-800 outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary font-medium"
                                                     >
-                                                        <option value="ignore">Ignore Column</option>
+                                                        <option value="ignore">Ignore This Column</option>
                                                         <option value="name">Item Name</option>
-                                                        <option value="size">Pack Size (e.g. 6/1.5 LB)</option>
+                                                        <option value="size">Pack Size or Quantity</option>
                                                         <option value="price">Total Price</option>
                                                     </select>
                                                 </th>
@@ -2703,21 +2512,20 @@
                         <div className="bg-diner-surface border border-diner-border rounded-2xl shadow-sm overflow-hidden animation-fadeIn">
                             <div className="p-6 border-b border-diner-border flex justify-between items-center bg-orange-50/50">
                                 <div>
-                                    <h3 className="text-xl font-bold text-diner-primary">Review & Correct Data</h3>
-                                    <p className="text-sm text-diner-muted">Verify the automatic conversions. Quantities stay in the uploaded unit here, while base units are saved in the background.</p>
+                                    <h3 className="text-xl font-bold text-diner-primary">Review Items Before Saving</h3>
                                 </div>
                                 <button 
                                     onClick={confirmAndMerge}
                                     className="bg-diner-primary hover:bg-diner-hover text-white font-bold py-2.5 px-6 rounded-lg transition-colors flex items-center shadow-sm"
                                 >
-                                    <Icon name="save" className="w-4 h-4 mr-2" /> Save to Pantry
+                                    <Icon name="save" className="w-4 h-4 mr-2" /> Save Items to Pantry
                                 </button>
                             </div>
                             <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
                                 <table className="w-full text-left text-sm whitespace-nowrap">
                                     <thead className="bg-stone-50 text-diner-text sticky top-0 z-10 shadow-sm">
                                         <tr>
-                                            <th className="p-4 font-semibold">Item Name</th>
+                                            <th className="p-4 font-semibold">Item</th>
                                             <th className="p-4 font-semibold">Original Pack</th>
                                             <th className="p-4 font-semibold w-32">Total Price ($)</th>
                                             <th className="p-4 font-semibold w-56">Imported Quantity</th>
@@ -2822,7 +2630,7 @@
             };
 
             const handleDelete = (id) => {
-                if(confirm("Are you sure you want to delete this item?")) {
+                if(confirm("Delete this pantry item?")) {
                     saveInventory(inventory.filter(i => i.id !== id));
                     setSelectedIds(prev => prev.filter(selectedId => selectedId !== id));
                 }
@@ -2830,7 +2638,7 @@
 
             const handleDeleteSelected = () => {
                 if (selectedIds.length === 0) return;
-                if(confirm(`Delete ${selectedIds.length} selected pantry item${selectedIds.length === 1 ? '' : 's'}?`)) {
+                if(confirm(`Delete ${selectedIds.length} checked pantry item${selectedIds.length === 1 ? '' : 's'}?`)) {
                     const selectedSet = new Set(selectedIds);
                     saveInventory(inventory.filter(i => !selectedSet.has(i.id)));
                     setSelectedIds([]);
@@ -2859,34 +2667,33 @@
                     <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                         <div>
                             <h2 className="text-3xl font-bold">Pantry</h2>
-                            <p className="text-diner-muted text-sm mt-1">{expiringCount} item{expiringCount === 1 ? '' : 's'} expired or expiring within {EXPIRATION_WARNING_DAYS} days.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button 
                                 onClick={() => setShowExpiringOnly(prev => !prev)}
                                 className={`${showExpiringOnly ? 'bg-diner-primary text-white' : 'bg-white text-diner-text border border-diner-border hover:bg-stone-50'} px-4 py-2.5 rounded-lg font-bold transition-colors shadow-sm`}
                             >
-                                {showExpiringOnly ? 'Show All Items' : 'Show Expiring Items'}
+                                {showExpiringOnly ? 'Show All' : `Expiring (${expiringCount})`}
                             </button>
                             <button 
                                 onClick={toggleSelectVisible}
                                 disabled={visibleIds.length === 0}
                                 className="bg-white disabled:opacity-50 border border-diner-border hover:bg-stone-50 text-diner-text px-4 py-2.5 rounded-lg font-bold transition-colors shadow-sm"
                             >
-                                {allVisibleSelected ? 'Clear Visible' : 'Select All Visible'}
+                                {allVisibleSelected ? 'Uncheck Shown' : 'Check Shown Items'}
                             </button>
                             <button 
                                 onClick={handleDeleteSelected}
                                 disabled={selectedIds.length === 0}
                                 className="bg-red-50 disabled:opacity-50 text-diner-danger hover:bg-red-100 border border-red-200 px-4 py-2.5 rounded-lg font-bold transition-colors shadow-sm"
                             >
-                                Delete Selected ({selectedIds.length})
+                                Delete Checked ({selectedIds.length})
                             </button>
                             <button 
                                 onClick={() => { setEditItem(null); setIsEditing(true); }}
                                 className="bg-diner-primary hover:bg-diner-hover text-white px-5 py-2.5 rounded-lg font-bold flex items-center transition-colors shadow-sm"
                             >
-                                <Icon name="plus" className="w-4 h-4 mr-2" /> Add Item
+                                <Icon name="plus" className="w-4 h-4 mr-2" /> Add One Item
                             </button>
                         </div>
                     </div>
@@ -2896,7 +2703,7 @@
                             <Icon name="search" className="w-5 h-5 text-stone-400 mr-3" />
                             <input 
                                 type="text" 
-                                placeholder="Search pantry items..." 
+                                placeholder="Type an item name to find it..." 
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="bg-transparent border-none outline-none text-diner-text w-full placeholder-stone-400 font-medium"
@@ -2910,16 +2717,16 @@
                                             <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectVisible} disabled={visibleIds.length === 0} />
                                         </th>
                                         <th className="p-4 font-semibold">Item Name</th>
-                                        <th className="p-4 font-semibold text-right">Total Price</th>
-                                        <th className="p-4 font-semibold text-right">Available Amount</th>
-                                        <th className="p-4 font-semibold text-right">Cost Per Base Unit</th>
+                                        <th className="p-4 font-semibold text-right">Dish Cost</th>
+                                        <th className="p-4 font-semibold text-right">Amount Left</th>
+                                        <th className="p-4 font-semibold text-right">Small Unit Cost</th>
                                         <th className="p-4 font-semibold">Expiration</th>
                                         <th className="p-4 font-semibold text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-stone-100">
                                     {filteredInventory.length === 0 ? (
-                                        <tr><td colSpan="7" className="p-8 text-center text-diner-muted font-medium">No items found.</td></tr>
+                                        <tr><td colSpan="7" className="p-8 text-center text-diner-muted font-medium">No items found. Press Add One Item to add your first pantry item.</td></tr>
                                     ) : filteredInventory.map(item => (
                                         <tr key={item.id} className={`${selectedIds.includes(item.id) ? 'bg-orange-50/50' : 'hover:bg-stone-50'} transition-colors`}>
                                             <td className="p-4">
@@ -2963,7 +2770,7 @@
             const [totalPrice, setTotalPrice] = useState(item ? item.totalPrice : "");
             const [inputQty, setInputQty] = useState(startingQty);
             const [inputUnit, setInputUnit] = useState(startingUnit);
-            const [expirationDate, setExpirationDate] = useState(item ? (item.expirationDate || "") : "");
+            const [expirationParts, setExpirationParts] = useState(() => getExpirationParts(item ? item.expirationDate : ""));
 
             const handleSave = (e) => {
                 e.preventDefault();
@@ -2973,6 +2780,12 @@
 
                 if (!name.trim() || !unitTypeObj || !Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0) {
                     alert('Please enter a valid name, price, quantity, and unit before saving.');
+                    return;
+                }
+
+                const expirationDate = getExpirationDateFromParts(expirationParts);
+                if (!expirationDate && hasAnyExpirationDatePart(expirationParts)) {
+                    alert('Please choose a valid day, month, and year for the expiration date, or leave all three boxes blank.');
                     return;
                 }
 
@@ -2988,7 +2801,7 @@
                     totalBaseUnits: totalBaseUnits,
                     baseUnit: baseUnitStr,
                     preferredUnit: inputUnit,
-                    expirationDate: expirationDate.trim()
+                    expirationDate: expirationDate
                 });
             };
 
@@ -2996,25 +2809,25 @@
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                     <div className="bg-diner-surface border border-diner-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animation-fadeIn">
                         <div className="flex justify-between items-center p-6 border-b border-diner-border bg-stone-50">
-                            <h3 className="text-xl font-bold text-diner-text">{item ? 'Edit Item' : 'Add Item'}</h3>
+                            <h3 className="text-xl font-bold text-diner-text">{item ? 'Edit Pantry Item' : 'Add One Pantry Item'}</h3>
                             <button onClick={onClose} className="text-stone-400 hover:text-diner-danger transition-colors"><Icon name="x" className="w-5 h-5"/></button>
                         </div>
                         <form onSubmit={handleSave} className="p-6 space-y-5">
                             <div>
-                                <label className="block text-sm font-semibold text-diner-text mb-1">Item Name</label>
-                                <input required type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow" placeholder="e.g. Granny Smith Apples" />
+                                <label className="block text-sm font-semibold text-diner-text mb-1">What did you buy?</label>
+                                <input required type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow" placeholder="Example: Onion, Brisket, BBQ Sauce" />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-diner-text mb-1">Total Price ($)</label>
-                                <input required type="number" step="0.01" min="0" value={totalPrice} onChange={e=>setTotalPrice(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow" placeholder="e.g. 25.50" />
+                                <label className="block text-sm font-semibold text-diner-text mb-1">What did the whole purchase cost? ($)</label>
+                                <input required type="number" step="0.01" min="0" value={totalPrice} onChange={e=>setTotalPrice(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow" placeholder="Example: 25.50" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-semibold text-diner-text mb-1">Quantity</label>
-                                    <input required type="number" step="any" min="0" value={inputQty} onChange={e=>setInputQty(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow" placeholder="e.g. 15" />
+                                    <label className="block text-sm font-semibold text-diner-text mb-1">How much did you buy?</label>
+                                    <input required type="number" step="any" min="0" value={inputQty} onChange={e=>setInputQty(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow" placeholder="Example: 15" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-semibold text-diner-text mb-1">Unit</label>
+                                    <label className="block text-sm font-semibold text-diner-text mb-1">Measurement</label>
                                     <select value={inputUnit} onChange={e=>setInputUnit(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary font-medium transition-shadow">
                                         {Object.entries(UNITS)
                                             .filter(([key]) => key !== 'dzn')
@@ -3025,13 +2838,12 @@
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-diner-text mb-1">Expiration Date / Note <span className="text-diner-muted font-normal">(optional)</span></label>
-                                <input type="text" value={expirationDate} onChange={e=>setExpirationDate(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary transition-shadow" placeholder="e.g. 2026-06-01, June 1, 2026, or use-by note" />
-                                <p className="text-xs text-diner-muted mt-1">Date-like values will be marked when expired or within {EXPIRATION_WARNING_DAYS} days.</p>
+                                <label className="block text-sm font-semibold text-diner-text mb-2">Expiration Date <span className="text-diner-muted font-normal">(optional)</span></label>
+                                <ExpirationDateInputs value={expirationParts} onChange={setExpirationParts} />
                             </div>
                             <div className="pt-4">
                                 <button type="submit" className="w-full bg-diner-primary hover:bg-diner-hover text-white font-bold py-3.5 rounded-xl transition-colors shadow-sm">
-                                    Save Item
+                                    Save Pantry Item
                                 </button>
                             </div>
                         </form>
@@ -3040,7 +2852,7 @@
             );
         }
 
-        function Kitchen({ inventory, recipes, logs, saveRecipes, saveInventory, saveLogs }) {
+        function Kitchen({ inventory, recipes, saveRecipes }) {
             const [isCreating, setIsCreating] = useState(false);
             const [editingRecipeId, setEditingRecipeId] = useState(null);
             
@@ -3235,68 +3047,6 @@
                 setCollapsedRecipeIds(prev => prev.filter(id => !visibleSet.has(id)));
             };
 
-            const handleCookDish = (recipe) => {
-                if(!confirm(`Cook "${recipe.name}"? This will automatically deduct the ingredients from your pantry and record to the Ledger.`)) return;
-                
-                let updatedInventory = inventory.map(normalizeInventoryItem);
-                let missingItems = [];
-                
-                for(let ing of recipe.ingredients) {
-                    const invItemIndex = updatedInventory.findIndex(i => i.id === ing.inventoryId);
-                    if(invItemIndex === -1) {
-                        missingItems.push(`- ${ing.name} (Item deleted from pantry)`);
-                        continue;
-                    }
-                    const conversion = convertIngredientForItem(ing.inputQty, ing.inputUnit, updatedInventory[invItemIndex]);
-                    const requiredBaseQty = conversion.baseQty || toNumber(ing.baseQty, 0);
-                    if(updatedInventory[invItemIndex].totalBaseUnits < (requiredBaseQty - 0.01)) { 
-                        missingItems.push(`- ${ing.name} (Have ${formatUnitDisplay(updatedInventory[invItemIndex].totalBaseUnits, updatedInventory[invItemIndex].baseUnit)}, Need ${formatUnitDisplay(requiredBaseQty, updatedInventory[invItemIndex].baseUnit)})`);
-                    }
-                }
-                
-                if(missingItems.length > 0) {
-                    alert("Cannot cook dish. Missing or insufficient ingredients:\n\n" + missingItems.join("\n"));
-                    return;
-                }
-
-                let actualTotalCost = 0;
-                const actualIngredients = [];
-                
-                for(let ing of recipe.ingredients) {
-                    const invItemIndex = updatedInventory.findIndex(i => i.id === ing.inventoryId);
-                    let item = { ...updatedInventory[invItemIndex] };
-                    const conversion = convertIngredientForItem(ing.inputQty, ing.inputUnit, item);
-                    const baseQty = conversion.baseQty || toNumber(ing.baseQty, 0);
-                    const ingredientCost = baseQty * item.costPerBaseUnit;
-                    actualTotalCost += ingredientCost;
-                    actualIngredients.push({
-                        name: ing.name,
-                        qty: ing.inputQty,
-                        unit: ing.inputUnit,
-                        cost: ingredientCost,
-                        isEstimated: conversion.isEstimated,
-                        conversionNote: conversion.conversionNote
-                    });
-                    
-                    item.totalBaseUnits = Math.max(0, item.totalBaseUnits - baseQty);
-                    item.totalPrice = item.totalBaseUnits * item.costPerBaseUnit;
-                    updatedInventory[invItemIndex] = normalizeInventoryItem(item);
-                }
-                
-                const logEntry = {
-                    id: Date.now().toString(),
-                    date: new Date().toISOString(),
-                    recipeName: recipe.name,
-                    totalCost: actualTotalCost,
-                    ingredients: actualIngredients
-                };
-
-                saveInventory(updatedInventory);
-                saveLogs([...logs, logEntry]);
-
-                alert(`Successfully cooked ${recipe.name}! Pantry and Ledger have been updated.`);
-            };
-
             const handleCloseCreate = () => {
                 setIsCreating(false);
                 setEditingRecipeId(null);
@@ -3314,14 +3064,13 @@
                     <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                         <div>
                             <h2 className="text-3xl font-bold">Kitchen</h2>
-                            <p className="text-diner-muted text-sm mt-1">Create, tag, search, collapse, cook, or bulk-delete saved dishes.</p>
                         </div>
                         {!isCreating && (
                             <button 
                                 onClick={startNewRecipe}
                                 className="bg-stone-800 hover:bg-stone-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center transition-colors shadow-sm"
                             >
-                                <Icon name="plus" className="w-4 h-4 mr-2" /> Create New Dish
+                                <Icon name="plus" className="w-4 h-4 mr-2" /> Create Dish
                             </button>
                         )}
                     </div>
@@ -3349,19 +3098,18 @@
                                             onChange={e=>setRecipeTags(e.target.value)}
                                             className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium"
                                         />
-                                        <p className="text-xs text-diner-muted mt-1">Tags are saved separately from the dish name and can be searched or filtered later.</p>
                                     </div>
                                 </div>
                                 <button onClick={handleCloseCreate} className="self-start text-stone-400 hover:text-diner-danger transition-colors bg-stone-100 hover:bg-red-50 p-2 rounded-full"><Icon name="x" className="w-5 h-5"/></button>
                             </div>
 
                             <div className="bg-stone-50 p-6 rounded-xl border border-diner-border shadow-inner">
-                                <h4 className="text-sm font-bold text-diner-text mb-4 uppercase tracking-wider">Add Ingredient from Pantry</h4>
+                                <h4 className="text-sm font-bold text-diner-text mb-4 uppercase tracking-wider">Add an Ingredient from Pantry</h4>
                                 <form onSubmit={handleAddIngredient} className="flex flex-col md:flex-row gap-4 items-end">
                                     <div className="flex-1">
                                         <label className="block text-sm font-semibold text-diner-text mb-1">Item</label>
                                         <select required value={selectedItemId} onChange={handleSelectedItemChange} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium">
-                                            <option value="" disabled>Select Item...</option>
+                                            <option value="" disabled>Choose pantry item...</option>
                                             {inventory.map(item => {
                                                 const normalizedItem = normalizeInventoryItem(item);
                                                 return (
@@ -3371,11 +3119,11 @@
                                         </select>
                                     </div>
                                     <div className="w-32">
-                                        <label className="block text-sm font-semibold text-diner-text mb-1">Used Qty</label>
+                                        <label className="block text-sm font-semibold text-diner-text mb-1">Amount Used</label>
                                         <input required type="number" step="any" min="0" value={ingredientQty} onChange={e=>setIngredientQty(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium" placeholder="0" />
                                     </div>
                                     <div className="w-40">
-                                        <label className="block text-sm font-semibold text-diner-text mb-1">Measurement Unit</label>
+                                        <label className="block text-sm font-semibold text-diner-text mb-1">Measurement</label>
                                         <select value={ingredientUnit} onChange={e=>setIngredientUnit(e.target.value)} className="w-full bg-white border border-stone-300 rounded-lg p-3 text-diner-text outline-none focus:border-diner-primary focus:ring-1 focus:ring-diner-primary shadow-sm font-medium">
                                             {ingredientUnitOptions.map(([key, val]) => (
                                                 <option key={key} value={key}>{val.label}</option>
@@ -3461,16 +3209,16 @@
                                 <div className="flex flex-wrap gap-2 items-center justify-between">
                                     <div className="flex flex-wrap gap-2">
                                         <button onClick={toggleSelectVisibleRecipes} disabled={visibleRecipeIds.length === 0} className="bg-white disabled:opacity-50 border border-diner-border hover:bg-stone-50 text-diner-text px-4 py-2 rounded-lg font-bold transition-colors">
-                                            {allVisibleRecipesSelected ? 'Clear Visible' : 'Select All Visible'}
+                                            {allVisibleRecipesSelected ? 'Uncheck Shown' : 'Check Shown Dishes'}
                                         </button>
                                         <button onClick={handleDeleteSelectedRecipes} disabled={selectedRecipeIds.length === 0} className="bg-red-50 disabled:opacity-50 text-diner-danger hover:bg-red-100 border border-red-200 px-4 py-2 rounded-lg font-bold transition-colors">
-                                            Delete Selected ({selectedRecipeIds.length})
+                                            Delete Checked ({selectedRecipeIds.length})
                                         </button>
                                         <button onClick={collapseAllVisibleRecipes} disabled={visibleRecipeIds.length === 0} className="bg-white disabled:opacity-50 border border-diner-border hover:bg-stone-50 text-diner-text px-4 py-2 rounded-lg font-bold transition-colors">
-                                            Collapse Visible
+                                            Collapse Shown
                                         </button>
                                         <button onClick={expandAllVisibleRecipes} disabled={visibleRecipeIds.length === 0} className="bg-white disabled:opacity-50 border border-diner-border hover:bg-stone-50 text-diner-text px-4 py-2 rounded-lg font-bold transition-colors">
-                                            Expand Visible
+                                            Expand Shown
                                         </button>
                                     </div>
                                     <div className="text-sm text-diner-muted font-medium">Showing {filteredRecipes.length} of {recipes.length} dishes</div>
@@ -3488,7 +3236,7 @@
 
                             {recipes.length === 0 ? (
                                 <div className="py-16 text-center border-2 border-dashed border-stone-300 bg-stone-50/50 rounded-3xl text-diner-muted font-medium">
-                                    No dishes created yet. Click "Create New Dish" to calculate costs.
+                                    No dishes yet.
                                 </div>
                             ) : filteredRecipes.length === 0 ? (
                                 <div className="py-16 text-center border-2 border-dashed border-stone-300 bg-stone-50/50 rounded-3xl text-diner-muted font-medium">
@@ -3525,7 +3273,7 @@
                                                 </button>
                                                 {!isCollapsed && (
                                                     <div className="flex-1 space-y-2.5 mb-6">
-                                                        <div className="text-xs text-diner-muted font-bold uppercase tracking-wider border-b border-stone-100 pb-2 mb-3">Ingredients Needed:</div>
+                                                        <div className="text-xs text-diner-muted font-bold uppercase tracking-wider border-b border-stone-100 pb-2 mb-3">Ingredients:</div>
                                                         {recipe.ingredients.slice(0, 5).map(ing => (
                                                             <div key={ing.id} className="text-sm flex justify-between items-center">
                                                                 <span className="truncate pr-2 text-diner-muted font-medium">
@@ -3539,16 +3287,10 @@
                                                         )}
                                                     </div>
                                                 )}
-                                                <div className="pt-5 border-t border-stone-100 flex justify-between items-end mb-5 mt-auto">
-                                                    <span className="text-xs text-diner-muted font-bold uppercase tracking-wider">Total Cost</span>
+                                                <div className="pt-5 border-t border-stone-100 flex justify-between items-end mt-auto">
+                                                    <span className="text-xs text-diner-muted font-bold uppercase tracking-wider">Dish Cost</span>
                                                     <span className="text-2xl font-bold text-diner-accent">{formatCurrency(getRecipeCurrentCost(recipe))}</span>
                                                 </div>
-                                                <button 
-                                                    onClick={() => handleCookDish(recipe)}
-                                                    className="w-full bg-diner-primary hover:bg-diner-hover text-white font-bold py-3 rounded-lg flex justify-center items-center transition-colors shadow-sm"
-                                                >
-                                                    <Icon name="flame" className="w-4 h-4 mr-2" /> Cook Dish
-                                                </button>
                                             </div>
                                         );
                                     })}
@@ -3556,82 +3298,6 @@
                             )}
                         </div>
                     )}
-                </div>
-            );
-        }
-
-        function Ledger({ logs, saveLogs }) {
-            const totalSpent = logs.reduce((sum, log) => sum + log.totalCost, 0);
-
-            const handleClearLogs = () => {
-                if (confirm("Are you sure you want to permanently clear all Ledger history? This cannot be undone.")) {
-                    saveLogs([]);
-                }
-            };
-
-            return (
-                <div className="max-w-5xl mx-auto space-y-6 animation-fadeIn">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-3xl font-bold">Ledger</h2>
-                        {logs.length > 0 && (
-                            <button 
-                                onClick={handleClearLogs}
-                                className="bg-red-50 text-diner-danger hover:bg-red-100 border border-red-200 px-4 py-2 rounded-lg font-bold transition-colors shadow-sm text-sm"
-                            >
-                                Clear Ledger
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="bg-diner-surface border border-diner-border p-6 rounded-2xl shadow-sm mb-8 flex justify-between items-center">
-                        <div>
-                            <h3 className="text-diner-muted font-medium mb-1">Total Expenses Tracked</h3>
-                            <p className="text-4xl font-bold text-diner-danger">-{formatCurrency(totalSpent)}</p>
-                        </div>
-                        <div className="text-right">
-                            <h3 className="text-diner-muted font-medium mb-1">Dishes Cooked</h3>
-                            <p className="text-3xl font-bold text-diner-text">{logs.length}</p>
-                        </div>
-                    </div>
-
-                    <div className="space-y-3 sm:space-y-4">
-                        {logs.length === 0 ? (
-                            <div className="py-16 text-center border-2 border-dashed border-stone-300 bg-stone-50/50 rounded-3xl text-diner-muted font-medium">
-                                The Ledger is empty. Cook a dish in the Kitchen to see logs here.
-                            </div>
-                        ) : (
-                            [...logs].reverse().map(log => (
-                                <div key={log.id} className="bg-diner-surface border border-diner-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                                    <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-5 gap-4">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-diner-text flex items-center">
-                                                <Icon name="checkCircle" className="w-5 h-5 text-diner-accent mr-2" />
-                                                Cooked: {log.recipeName}
-                                            </h3>
-                                            <p className="text-sm text-diner-muted mt-1 font-medium ml-7">
-                                                {new Date(log.date).toLocaleString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                        </div>
-                                        <span className="text-xl font-bold text-diner-danger bg-red-50 px-3 py-1 rounded-lg">-{formatCurrency(log.totalCost)}</span>
-                                    </div>
-                                    <div className="bg-stone-50 rounded-lg p-5 border border-stone-200">
-                                        <div className="text-xs font-bold uppercase tracking-wider text-diner-muted mb-3">Items Deducted from Pantry:</div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                                            {log.ingredients.map((ing, idx) => (
-                                                <div key={idx} className="text-sm text-diner-muted flex items-start">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-stone-300 mt-1.5 mr-2 shrink-0"></span>
-                                                    <span>
-                                                        <span className="text-diner-text font-bold mr-1">{ing.qty} {UNITS[ing.unit]?.label.split(' ')[0] || ing.unit}</span> 
-                                                        {ing.name}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
                 </div>
             );
         }
